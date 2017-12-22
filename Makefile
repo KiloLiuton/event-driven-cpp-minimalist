@@ -6,7 +6,7 @@ _OBJ = main.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
 
 CC = g++
-CFLAGS = -Wall -std=c++11 -O3 -march=native
+CFLAGS = -Wall -std=c++11 -O3 -march=native -I include
 LDFLAGS = -lm
 
 # make objects. '$@' = left of ':', '$^' = first item on left of ':'
