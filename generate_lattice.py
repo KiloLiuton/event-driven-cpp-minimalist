@@ -1,8 +1,8 @@
 import numpy as np
 from tqdm import tqdm
 
-N = 20000
-K = 100
+N = 16
+K = 4
 
 neighbor_list = []
 indexes = []
