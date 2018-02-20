@@ -6,7 +6,7 @@
 #include <pcg_random.hpp>
 
 // 32 bits for indexing can go up to 2.5 billion connections
-// topology constants
+// topology constants: Regular Ring, eight neighbors per site
 constexpr uint16_t NEIGHBOR_LIST[] = {
 12,13,14,15,1,2,3,4,13,14,15,0,2,3,4,5,14,15,0,1,3,4,5,6,15,0,1,2,4,5,6,7,0,1,2,3,
 5,6,7,8,1,2,3,4,6,7,8,9,2,3,4,5,7,8,9,10,3,4,5,6,8,9,10,11,4,5,6,7,9,10,11,12,5,6,
@@ -90,11 +90,11 @@ void initialize_deltas() {
     for (int i = 0; i < N; i++) {
         const int K = NUMBER_OF_NEIGHBORS[i];
         const int ind = INDEXES[i];
-        int8_t state = states.array[i];
-        int8_t nextState = (state+1)%3;
+        const int8_t state = states.array[i];
+        const int8_t nextState = (state+1)%3;
         int D = 0;
         for (int i = 0; i < K; i++) {
-            int8_t nstate = states.array[ NEIGHBOR_LIST[ind+i] ];
+            int8_t nstate = states.array[NEIGHBOR_LIST[ind+i]];
             if (state == nstate) {
                 D--;
             } else if (nextState == nstate) {
@@ -142,8 +142,15 @@ double get_order_parameter() {
 }
 
 void print_states() {
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         std::cout << unsigned(states.array[i]) << ' ';
+    }
+    std::cout << '\n';
+}
+
+void print_rates() {
+    for (size_t i = 0; i < N; i++) {
+        std::cout << rates.array[i] << ' ';
     }
     std::cout << '\n';
 }
@@ -154,8 +161,11 @@ int main(int argc, char* argv[]) {
     initialize_everything(coupling);
 
     // greeting message
+    std::cout << "System size: " << N << '\n';
     std::cout << "Initial states: ";
     print_states();
+    std::cout << "Initial rates: ";
+    print_rates();
 
     std::cout << "Initial OP: " << get_order_parameter() << '\n';
 
@@ -168,5 +178,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-
