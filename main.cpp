@@ -1,47 +1,46 @@
+#include <map>
 #include <iostream>
+#include <iomanip>
 #include <algorithm>
 #include <array>
 #include <vector>
+#include <random>
 #include <math.h>
 #include <pcg_random.hpp>
+#include "topology.h"
 
-// 32 bits for indexing can go up to 2.5 billion connections
-// topology constants: Regular Ring, eight neighbors per site
-constexpr uint16_t NEIGHBOR_LIST[] = {
-12,13,14,15,1,2,3,4,13,14,15,0,2,3,4,5,14,15,0,1,3,4,5,6,15,0,1,2,4,5,6,7,0,1,2,3,
-5,6,7,8,1,2,3,4,6,7,8,9,2,3,4,5,7,8,9,10,3,4,5,6,8,9,10,11,4,5,6,7,9,10,11,12,5,6,
-7,8,10,11,12,13,6,7,8,9,11,12,13,14,7,8,9,10,12,13,14,15,8,9,10,11,13,14,15,0,9,10,
-11,12,14,15,0,1,10,11,12,13,15,0,1,2,11,12,13,14,0,1,2,3
-};
-constexpr uint32_t INDEXES[] = {
-0,8,16,24,32,40,48,56,64,72,80,88,96,104,112,120
-};
-constexpr uint16_t NUMBER_OF_NEIGHBORS[] = {
-8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8
-};
+// GLOBAL VARIABLES declared in topology.h
+// uint16_t NEIGHBOR_LIST[];
+// uint32_t INDEXES[];
+// uint16_t NUMBER_OF_NEIGHBORS[];
+// uint16_t K_MAX;
+// uint16_t K_MIN;
+// uint16_t N;
+// uint16_t K;
+// float p;
+// uint32_t NUM_POSSIBLE_TRANSITIONS;
 
-constexpr uint16_t K_MAX = 8; // largest element of NUMBER_OF_NEIGHBORS
-constexpr uint16_t K_MIN = 8; // smallest element of NUMBER_OF_NEIGHBORS
-constexpr uint16_t N = sizeof(INDEXES)/sizeof(INDEXES[0]);
-constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = (K_MAX - K_MIN + 1)*
-                                              (K_MAX + K_MIN + 1);
-
-// lattice variables
+// GLOBAL VARIABLES
 struct states {
     uint8_t array[N];
     uint16_t N0, N1, N2;
 } states;
-
-int16_t deltas[N];
 
 struct rates {
     double array[N];
     double sum;
 } rates;
 
+int16_t deltas[N];
+
 double ratesTable[NUM_POSSIBLE_TRANSITIONS];
 
-// generates a new random congiguration and update all dependencies
+std::uniform_real_distribution<double> uniform(0,1);
+
+pcg32 rng(42u, 52u);
+
+// FUNCTIONS
+// generates a new random configuration and update all dependencies
 void initialize_everything(double coupling_strength);
 // populate the states vector with a random configuration
 void initialize_states();
@@ -55,8 +54,12 @@ double get_rate_from_table(int site);
 void initialize_rates();
 // calculates de order parameter for the current state of the system
 double get_order_parameter();
+// select an index that will undergo transition
+int transitionIndex();
 // print the state for each site to stdout
 void print_states();
+// print transitions rates of every site
+void print_rates();
 
 void initialize_everything(double coupling_strength) {
     initialize_rates_table(coupling_strength);
@@ -67,7 +70,7 @@ void initialize_everything(double coupling_strength) {
 
 void initialize_states() {
     for (int i = 0; i < N; i++) {
-        uint8_t state = rand() % 3;
+        uint8_t state = rng(3);
         states.array[i] = state;
         switch (state) {
         case 0:
@@ -88,40 +91,40 @@ void initialize_states() {
 
 void initialize_deltas() {
     for (int i = 0; i < N; i++) {
-        const int K = NUMBER_OF_NEIGHBORS[i];
+        const int k = NUMBER_OF_NEIGHBORS[i];
         const int ind = INDEXES[i];
         const int8_t state = states.array[i];
         const int8_t nextState = (state+1)%3;
-        int D = 0;
-        for (int i = 0; i < K; i++) {
+        int d = 0;
+        for (int i = 0; i < k; i++) {
             int8_t nstate = states.array[NEIGHBOR_LIST[ind+i]];
             if (state == nstate) {
-                D--;
+                d--;
             } else if (nextState == nstate) {
-                D++;
+                d++;
             }
         }
-        deltas[i] = D;
+        deltas[i] = d;
     }
 }
 
 void initialize_rates_table(double a) {
-    int K = K_MIN;
-    int D = -K_MIN;
+    int k = K_MIN;
+    int d = -K_MIN;
     for (uint32_t i = 0; i < NUM_POSSIBLE_TRANSITIONS; i++) {
-        if (D > K) {
-            K++;
-            D = -K;
+        if (d > k) {
+            k++;
+            d = -k;
         }
-        ratesTable[i] = std::exp(a*D/K);
-        D++;
+        ratesTable[i] = std::exp(a*d/k);
+        d++;
     }
 }
 
 double get_rate_from_table(int i) {
-    const int K = NUMBER_OF_NEIGHBORS[i];
-    const int D = deltas[i];
-    int idx = (K - K_MIN) * (K + K_MIN) + K + D;
+    const int k = NUMBER_OF_NEIGHBORS[i];
+    const int d = deltas[i];
+    int idx = (k - K_MIN) * (k + K_MIN) + k + d;
     return ratesTable[idx];
 }
 
@@ -139,6 +142,18 @@ double get_order_parameter() {
     uint16_t N1 = states.N1;
     uint16_t N2 = states.N2;
     return sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
+}
+
+int transitionIndex() {
+    double partialRate = 0;
+    double g = 0;
+    double randomRate = uniform(rng) * rates.sum;
+    for (int id = 0; id < N; ++id) {
+        g = rates.array[id];
+        partialRate += g;
+        if (partialRate > randomRate) return id;
+    }
+    return N - 1;
 }
 
 void print_states() {
@@ -161,20 +176,13 @@ int main(int argc, char* argv[]) {
     initialize_everything(coupling);
 
     // greeting message
-    std::cout << "System size: " << N << '\n';
+    std::cout << "N = " << N << '\n';
+    std::cout << "K = " << K << '\n';
     std::cout << "Initial states: ";
     print_states();
     std::cout << "Initial rates: ";
     print_rates();
-
     std::cout << "Initial OP: " << get_order_parameter() << '\n';
-
-    pcg32 rng(42u, 52u);
-    std::cout << "Dice rolls: " << '\n';
-    for (int i = 0; i < 10; i++) {
-        std::cout << rng(6) << ' ';
-    }
-    std::cout << '\n';
 
     return 0;
 }
