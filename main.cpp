@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <array>
+#include <numeric>
 #include <vector>
 #include <random>
 #include <math.h>
@@ -39,27 +40,39 @@ std::uniform_real_distribution<double> uniform(0,1);
 
 pcg32 rng(42u, 52u);
 
-// FUNCTIONS
-// generates a new random configuration and update all dependencies
+// INITIALIZER & GETTER FUNCTIONS
+/* generates a new random configuration and update all dependencies */
 void initialize_everything(double coupling_strength);
-// populate the states vector with a random configuration
+/* populate the states vector with a random configuration */
 void initialize_states();
-// populates delta vector (states must be populated)
+/* populates delta vector (states must be populated) */
 void initialize_deltas();
-// populates rates table
+/* populates rates table */
 void initialize_rates_table(double coupling_strength);
-// get the transition rate for a site by accessing deltas vector and rateTable
+/* get the transition rate for a site by accessing deltas vector and then
+ * building the access index of the ratesTable. */
 double get_rate_from_table(int site);
-// populates the rates vector
+/* populates the rates vector */
 void initialize_rates();
-// calculates de order parameter for the current state of the system
+/* calculates de order parameter for the current state of the system */
 double get_order_parameter();
-// select an index that will undergo transition
+
+// DYNAMICS FUNCTIONS
+/* updates deltas, rates and states for site n */
+void update_site(int site_index);
+/* update rates and delta values for all neighbors of a site which has been
+ * updated */
+void update_neighbors(int site_index);
+/* select an index that will undergo transition */
 int transitionIndex();
-// print the state for each site to stdout
+
+// PRINTER & DEBUGGING FUNCTIONS
+/* print the state for each site to stdout */
 void print_states();
-// print transitions rates of every site
+/* print transitions rates of every site */
 void print_rates();
+/* print deltas for all sites */
+void print_deltas();
 
 void initialize_everything(double coupling_strength) {
     initialize_rates_table(coupling_strength);
@@ -91,16 +104,16 @@ void initialize_states() {
 
 void initialize_deltas() {
     for (int i = 0; i < N; i++) {
-        const int k = NUMBER_OF_NEIGHBORS[i];
+        const int ki = NUMBER_OF_NEIGHBORS[i];
         const int ind = INDEXES[i];
         const int8_t state = states.array[i];
         const int8_t nextState = (state+1)%3;
         int d = 0;
-        for (int i = 0; i < k; i++) {
-            int8_t nstate = states.array[NEIGHBOR_LIST[ind+i]];
-            if (state == nstate) {
+        for (int j = 0; j < ki; j++) {
+            int8_t nbState = states.array[NEIGHBOR_LIST[ind+j]];
+            if (nbState == state) {
                 d--;
-            } else if (nextState == nstate) {
+            } else if (nbState == nextState) {
                 d++;
             }
         }
@@ -144,6 +157,47 @@ double get_order_parameter() {
     return sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
 }
 
+void update_site(int i) {
+    int state = states.array[i];
+    int nextState = (state + 1) % 3;
+    uint16_t ki = NUMBER_OF_NEIGHBORS[i];
+    states.array[i] = nextState;
+    int newDelta = 0;
+    for (size_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
+        int nbState = states.array[NEIGHBOR_LIST[j]];
+        if (nbState == nextState) {
+            newDelta--;
+        } else if (nbState == (nextState + 1) % 3) {
+            newDelta++;
+        }
+    }
+    deltas[i] = newDelta;
+    rates.sum -= rates.array[i];
+    rates.array[i] = ratesTable[(ki - K_MIN) * (ki + K_MAX) + ki + newDelta];
+    rates.sum += rates.array[i];
+}
+
+void update_neighbors(int i) {
+    // here we assume that site 'i' has already undergone transition
+    int newState = states.array[i];
+    for (size_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
+        int nbIndex = NEIGHBOR_LIST[j];
+        int nbState = states.array[nbIndex];
+        if (nbState == newState) {
+            deltas[nbIndex] -= 1;
+        } else if (nbState == (newState + 1) % 3) {
+            deltas[nbIndex] -= 1;
+        } else {
+            deltas[nbIndex] += 2;
+        }
+        // be sure to update rates only after updating `deltas` because
+        // get_rate_from_table uses it to get the updated value for the rate
+        rates.sum -= rates.array[nbIndex];
+        rates.array[nbIndex] = get_rate_from_table(nbIndex);
+        rates.sum += rates.array[nbIndex];
+    }
+}
+
 int transitionIndex() {
     double partialRate = 0;
     double g = 0;
@@ -153,12 +207,23 @@ int transitionIndex() {
         partialRate += g;
         if (partialRate > randomRate) return id;
     }
+    rates.sum = 0;
+    for (int i = 0; i < N; i++) {
+        rates.sum += rates.array[i];
+    }
     return N - 1;
 }
 
 void print_states() {
     for (size_t i = 0; i < N; i++) {
         std::cout << unsigned(states.array[i]) << ' ';
+    }
+    std::cout << '\n';
+}
+
+void print_deltas() {
+    for (size_t i = 0; i < N; i++) {
+        std::cout << deltas[i] << ' ';
     }
     std::cout << '\n';
 }
@@ -178,11 +243,45 @@ int main(int argc, char* argv[]) {
     // greeting message
     std::cout << "N = " << N << '\n';
     std::cout << "K = " << K << '\n';
+    std::cout << std::setprecision(2);
+    std::cout << std::fixed;
     std::cout << "Initial states: ";
     print_states();
+    std::cout << "Initial deltas: ";
+    print_deltas();
     std::cout << "Initial rates: ";
     print_rates();
     std::cout << "Initial OP: " << get_order_parameter() << '\n';
+
+    update_site(4);
+    update_neighbors(4);
+    std::cout << "\nUpdated states: ";
+    print_states();
+    std::cout << "Updated deltas: ";
+    print_deltas();
+    std::cout << "Updated rates: ";
+    print_rates();
+    std::cout << "Updated OP: " << get_order_parameter() << '\n';
+
+    update_site(4);
+    update_neighbors(4);
+    std::cout << "\nUpdated states: ";
+    print_states();
+    std::cout << "Updated deltas: ";
+    print_deltas();
+    std::cout << "Updated rates: ";
+    print_rates();
+    std::cout << "Updated OP: " << get_order_parameter() << '\n';
+
+    update_site(4);
+    update_neighbors(4);
+    std::cout << "\nUpdated states: ";
+    print_states();
+    std::cout << "Updated deltas: ";
+    print_deltas();
+    std::cout << "Updated rates: ";
+    print_rates();
+    std::cout << "Updated OP: " << get_order_parameter() << '\n';
 
     return 0;
 }
