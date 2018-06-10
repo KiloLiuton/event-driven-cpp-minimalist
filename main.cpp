@@ -8,9 +8,11 @@
 #include <random>
 #include <math.h>
 #include <pcg_random.hpp>
-#include "topology.h"
 
-// GLOBAL VARIABLES declared in topology.h
+// include the desired topology file and compile before running
+#include "7-2-0_0-seed_42.h"
+
+// GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
 // uint16_t NUMBER_OF_NEIGHBORS[];
@@ -24,7 +26,7 @@
 // GLOBAL VARIABLES
 struct states {
     uint8_t array[N];
-    uint16_t N0, N1, N2;
+    uint16_t pop[3];
 } states;
 
 struct rates {
@@ -59,7 +61,7 @@ double get_order_parameter();
 
 // DYNAMICS FUNCTIONS
 /* updates deltas, rates and states for site n */
-void update_site(int site_index);
+void transition_site(int site_index);
 /* update rates and delta values for all neighbors of a site which has been
  * updated */
 void update_neighbors(int site_index);
@@ -87,13 +89,13 @@ void initialize_states() {
         states.array[i] = state;
         switch (state) {
         case 0:
-            states.N0++;
+            states.pop[0]++;
             break;
         case 1:
-            states.N1++;
+            states.pop[1]++;
             break;
         case 2:
-            states.N2++;
+            states.pop[2]++;
             break;
         default:
             std::cout << "Error: Generated state out of range\n";
@@ -151,17 +153,19 @@ void initialize_rates() {
 }
 
 double get_order_parameter() {
-    uint16_t N0 = states.N0;
-    uint16_t N1 = states.N1;
-    uint16_t N2 = states.N2;
+    uint16_t N0 = states.pop[0];
+    uint16_t N1 = states.pop[1];
+    uint16_t N2 = states.pop[2];
     return sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
 }
 
-void update_site(int i) {
+void transition_site(int i) {
     int state = states.array[i];
     int nextState = (state + 1) % 3;
     uint16_t ki = NUMBER_OF_NEIGHBORS[i];
     states.array[i] = nextState;
+    states.pop[state]--;
+    states.pop[nextState]++;
     int newDelta = 0;
     for (size_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
         int nbState = states.array[NEIGHBOR_LIST[j]];
@@ -229,6 +233,7 @@ void print_deltas() {
 }
 
 void print_rates() {
+    std::cout << std::setprecision(2);
     for (size_t i = 0; i < N; i++) {
         std::cout << rates.array[i] << ' ';
     }
@@ -243,7 +248,6 @@ int main(int argc, char* argv[]) {
     // greeting message
     std::cout << "N = " << N << '\n';
     std::cout << "K = " << K << '\n';
-    std::cout << std::setprecision(2);
     std::cout << std::fixed;
     std::cout << "Initial states: ";
     print_states();
@@ -251,9 +255,9 @@ int main(int argc, char* argv[]) {
     print_deltas();
     std::cout << "Initial rates: ";
     print_rates();
-    std::cout << "Initial OP: " << get_order_parameter() << '\n';
+    std::cout << "Initial OP: " << std::setprecision(4) << get_order_parameter() << '\n';
 
-    update_site(4);
+    transition_site(4);
     update_neighbors(4);
     std::cout << "\nUpdated states: ";
     print_states();
@@ -261,9 +265,9 @@ int main(int argc, char* argv[]) {
     print_deltas();
     std::cout << "Updated rates: ";
     print_rates();
-    std::cout << "Updated OP: " << get_order_parameter() << '\n';
+    std::cout << "Updated OP: " << std::setprecision(4) << get_order_parameter() << '\n';
 
-    update_site(4);
+    transition_site(4);
     update_neighbors(4);
     std::cout << "\nUpdated states: ";
     print_states();
@@ -271,9 +275,9 @@ int main(int argc, char* argv[]) {
     print_deltas();
     std::cout << "Updated rates: ";
     print_rates();
-    std::cout << "Updated OP: " << get_order_parameter() << '\n';
+    std::cout << "Updated OP: " << std::setprecision(4) << get_order_parameter() << '\n';
 
-    update_site(4);
+    transition_site(4);
     update_neighbors(4);
     std::cout << "\nUpdated states: ";
     print_states();
@@ -281,7 +285,7 @@ int main(int argc, char* argv[]) {
     print_deltas();
     std::cout << "Updated rates: ";
     print_rates();
-    std::cout << "Updated OP: " << get_order_parameter() << '\n';
+    std::cout << "Updated OP: " << std::setprecision(4) << get_order_parameter() << '\n';
 
     return 0;
 }
