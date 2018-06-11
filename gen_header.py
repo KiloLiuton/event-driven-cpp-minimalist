@@ -5,14 +5,16 @@ import random
 import sys
 import os
 
-s = 42
-random.seed(s)
-
 try:
     N, K, p = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
+    if len(sys.argv == 5):
+        s = int(sys.argv[4])
+    else:
+        s = 42
 except:
-    sys.exit('Usage - ./gen_header.py N K p')
+    sys.exit('Usage - ./gen_header.py N K p s=42 (optional)')
 
+random.seed(s)
 
 def writeHeader(fname):
     with open(fname, 'w') as f:

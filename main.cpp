@@ -1,5 +1,6 @@
 #include <map>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <algorithm>
 #include <array>
@@ -37,9 +38,9 @@ int16_t deltas[N];
 
 double ratesTable[NUM_POSSIBLE_TRANSITIONS];
 
-std::uniform_real_distribution<double> uniform(0,1);
+std::uniform_real_distribution<double> UNIFORM(0,1);
 
-pcg32 rng(42u, 52u);
+pcg32 RNG(42u, 52u);
 
 // INITIALIZER & GETTER FUNCTIONS
 /* generates a new random configuration and update all dependencies */
@@ -90,7 +91,7 @@ void initialize_everything(double a) {
 
 void initialize_states() {
     for (uint16_t i = 0; i < N; i++) {
-        uint8_t state = rng(3);
+        uint8_t state = RNG(3);
         states.array[i] = state;
         switch (state) {
         case 0:
@@ -145,6 +146,10 @@ double get_rate_from_table(uint16_t i) {
     const uint16_t k = NUMBER_OF_NEIGHBORS[i];
     const int16_t d = deltas[i];
     uint32_t idx = (k - K_MIN) * (k + K_MIN) + k + d;
+    if (idx < 0 || i >= NUM_POSSIBLE_TRANSITIONS) {
+	std::cout << "FOOOOO\n";
+	std::cout << i << ' ' << k << ' ' << d << ' ' << idx << '\n';
+    }
     return ratesTable[idx];
 }
 
@@ -210,7 +215,7 @@ void update_neighbors(uint16_t i) {
 uint16_t transitionIndex() {
     double partialRate = 0;
     double g = 0;
-    double randomRate = uniform(rng) * rates.sum;
+    double randomRate = UNIFORM(RNG) * rates.sum;
     for (uint16_t id = 0; id < N; ++id) {
         g = rates.array[id];
         partialRate += g;
@@ -251,16 +256,7 @@ void print_rates() {
     std::cout << '\n';
 }
 
-int main(int argc, char* argv[]) {
-    size_t seed = 20u;
-    size_t random_stream = 2u;
-
-    rng.seed(seed, random_stream);
-    double coupling = 0.8;
-
-    initialize_everything(coupling);
-
-    // greeting message
+void greeting() {
     std::cout << "N = " << N << "    K = " << K << "    p = " << p << '\n';
     std::cout << "Initial populations: ";
     std::cout << states.pop[0] << ' '
@@ -268,6 +264,39 @@ int main(int argc, char* argv[]) {
 	      << states.pop[2] << '\n';
     std::cout << std::fixed << std::setprecision(4);
     std::cout << "Initial order parameter: " << get_order_parameter() << '\n';
+}
 
+int main(int argc, char* argv[]) {
+
+    unsigned int random_stream = 2u;
+    unsigned int dynamics_seed = 20u;
+    RNG.seed(dynamics_seed, random_stream);
+
+    double coupling = 0.8;
+    initialize_everything(coupling);
+
+    unsigned int ITERS = 10;
+    greeting();
+    for (size_t i = 0; i < ITERS; ++i) {
+	transition_site();
+	std::cout << states.pop[0] << ' '
+	          << states.pop[1] << ' '
+		  << states.pop[2] << '\n';
+    }
+
+    /*
+    std::ofstream OParameterLog;
+    OParameterLog.open("OParameter.dat");
+
+    for (size_t i = 0; i < ITERS; ++i) {
+	transition_site();
+	double r = get_order_parameter();
+	std::cout << r << ' ';
+	// OParameterLog << "foo" << '\n';
+    }
+
+    OParameterLog.close();
+
+    */
     return 0;
 }
