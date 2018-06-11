@@ -10,8 +10,7 @@
 #include <pcg_random.hpp>
 
 // include the desired topology file and compile before running
-#include "7-2-0_0-seed_42.h"
-
+#include "20-3-0_0-seed_42.h"
 // GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
@@ -60,13 +59,15 @@ void initialize_rates();
 double get_order_parameter();
 
 // DYNAMICS FUNCTIONS
-/* updates deltas, rates and states for site n */
-void transition_site(int site_index);
-/* update rates and delta values for all neighbors of a site which has been
+/* updates deltas, rates and states for a SINGLE site undergoing transition */
+void update_site(int site_index);
+/* update rates and delta values for all NEIGHBORS of a site which has been
  * updated */
-void update_neighbors(int site_index);
+void update_neighbors(uint16_t site_index);
 /* select an index that will undergo transition */
-int transitionIndex();
+uint16_t transitionIndex();
+/* performs a complete step of the event driven simulation */
+void transition_site();
 
 // PRINTER & DEBUGGING FUNCTIONS
 /* print the state for each site to stdout */
@@ -76,15 +77,19 @@ void print_rates();
 /* print deltas for all sites */
 void print_deltas();
 
-void initialize_everything(double coupling_strength) {
-    initialize_rates_table(coupling_strength);
+void initialize_everything(double a) {
+    initialize_rates_table(a);
+    std::cout << "Rates table initialized! a = " << a << '\n';
     initialize_states();
+    std::cout << "States initialized!\n";
     initialize_deltas();
+    std::cout << "Deltas initialized!\n";
     initialize_rates();
+    std::cout << "Rates initialized!\n";
 }
 
 void initialize_states() {
-    for (int i = 0; i < N; i++) {
+    for (uint16_t i = 0; i < N; i++) {
         uint8_t state = rng(3);
         states.array[i] = state;
         switch (state) {
@@ -105,13 +110,13 @@ void initialize_states() {
 }
 
 void initialize_deltas() {
-    for (int i = 0; i < N; i++) {
-        const int ki = NUMBER_OF_NEIGHBORS[i];
-        const int ind = INDEXES[i];
+    for (uint16_t i = 0; i < N; i++) {
+        const uint16_t ki = NUMBER_OF_NEIGHBORS[i];
+        const uint16_t ind = INDEXES[i];
         const int8_t state = states.array[i];
         const int8_t nextState = (state+1)%3;
-        int d = 0;
-        for (int j = 0; j < ki; j++) {
+        int16_t d = 0;
+        for (uint16_t j = 0; j < ki; j++) {
             int8_t nbState = states.array[NEIGHBOR_LIST[ind+j]];
             if (nbState == state) {
                 d--;
@@ -124,8 +129,8 @@ void initialize_deltas() {
 }
 
 void initialize_rates_table(double a) {
-    int k = K_MIN;
-    int d = -K_MIN;
+    uint16_t k = K_MIN;
+    uint16_t d = -K_MIN;
     for (uint32_t i = 0; i < NUM_POSSIBLE_TRANSITIONS; i++) {
         if (d > k) {
             k++;
@@ -136,16 +141,16 @@ void initialize_rates_table(double a) {
     }
 }
 
-double get_rate_from_table(int i) {
-    const int k = NUMBER_OF_NEIGHBORS[i];
-    const int d = deltas[i];
-    int idx = (k - K_MIN) * (k + K_MIN) + k + d;
+double get_rate_from_table(uint16_t i) {
+    const uint16_t k = NUMBER_OF_NEIGHBORS[i];
+    const int16_t d = deltas[i];
+    uint32_t idx = (k - K_MIN) * (k + K_MIN) + k + d;
     return ratesTable[idx];
 }
 
 void initialize_rates() {
     rates.sum = 0;
-    for (int i = 0; i < N; i++) {
+    for (uint16_t i = 0; i < N; i++) {
         const double r = get_rate_from_table(i);
         rates.array[i] = r;
         rates.sum += r;
@@ -159,16 +164,16 @@ double get_order_parameter() {
     return sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
 }
 
-void transition_site(int i) {
-    int state = states.array[i];
-    int nextState = (state + 1) % 3;
+void update_site(uint16_t i) {
+    uint8_t state = states.array[i];
+    uint8_t nextState = (state + 1) % 3;
     uint16_t ki = NUMBER_OF_NEIGHBORS[i];
     states.array[i] = nextState;
     states.pop[state]--;
     states.pop[nextState]++;
-    int newDelta = 0;
-    for (size_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
-        int nbState = states.array[NEIGHBOR_LIST[j]];
+    uint16_t newDelta = 0;
+    for (uint16_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
+        uint8_t nbState = states.array[NEIGHBOR_LIST[j]];
         if (nbState == nextState) {
             newDelta--;
         } else if (nbState == (nextState + 1) % 3) {
@@ -181,12 +186,12 @@ void transition_site(int i) {
     rates.sum += rates.array[i];
 }
 
-void update_neighbors(int i) {
+void update_neighbors(uint16_t i) {
     // here we assume that site 'i' has already undergone transition
-    int newState = states.array[i];
-    for (size_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
-        int nbIndex = NEIGHBOR_LIST[j];
-        int nbState = states.array[nbIndex];
+    uint8_t newState = states.array[i];
+    for (uint16_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
+        uint16_t nbIndex = NEIGHBOR_LIST[j];
+        uint16_t nbState = states.array[nbIndex];
         if (nbState == newState) {
             deltas[nbIndex] -= 1;
         } else if (nbState == (newState + 1) % 3) {
@@ -202,31 +207,37 @@ void update_neighbors(int i) {
     }
 }
 
-int transitionIndex() {
+uint16_t transitionIndex() {
     double partialRate = 0;
     double g = 0;
     double randomRate = uniform(rng) * rates.sum;
-    for (int id = 0; id < N; ++id) {
+    for (uint16_t id = 0; id < N; ++id) {
         g = rates.array[id];
         partialRate += g;
         if (partialRate > randomRate) return id;
     }
     rates.sum = 0;
-    for (int i = 0; i < N; i++) {
+    for (uint16_t i = 0; i < N; i++) {
         rates.sum += rates.array[i];
     }
     return N - 1;
 }
 
+void transition_site() {
+    uint16_t i = transitionIndex();
+    update_site(i);
+    update_neighbors(i);
+}
+
 void print_states() {
-    for (size_t i = 0; i < N; i++) {
+    for (uint16_t i = 0; i < N; i++) {
         std::cout << unsigned(states.array[i]) << ' ';
     }
     std::cout << '\n';
 }
 
 void print_deltas() {
-    for (size_t i = 0; i < N; i++) {
+    for (uint16_t i = 0; i < N; i++) {
         std::cout << deltas[i] << ' ';
     }
     std::cout << '\n';
@@ -234,58 +245,29 @@ void print_deltas() {
 
 void print_rates() {
     std::cout << std::setprecision(2);
-    for (size_t i = 0; i < N; i++) {
+    for (uint16_t i = 0; i < N; i++) {
         std::cout << rates.array[i] << ' ';
     }
     std::cout << '\n';
 }
 
 int main(int argc, char* argv[]) {
+    size_t seed = 20u;
+    size_t random_stream = 2u;
+
+    rng.seed(seed, random_stream);
     double coupling = 0.8;
 
     initialize_everything(coupling);
 
     // greeting message
-    std::cout << "N = " << N << '\n';
-    std::cout << "K = " << K << '\n';
-    std::cout << std::fixed;
-    std::cout << "Initial states: ";
-    print_states();
-    std::cout << "Initial deltas: ";
-    print_deltas();
-    std::cout << "Initial rates: ";
-    print_rates();
-    std::cout << "Initial OP: " << std::setprecision(4) << get_order_parameter() << '\n';
-
-    transition_site(4);
-    update_neighbors(4);
-    std::cout << "\nUpdated states: ";
-    print_states();
-    std::cout << "Updated deltas: ";
-    print_deltas();
-    std::cout << "Updated rates: ";
-    print_rates();
-    std::cout << "Updated OP: " << std::setprecision(4) << get_order_parameter() << '\n';
-
-    transition_site(4);
-    update_neighbors(4);
-    std::cout << "\nUpdated states: ";
-    print_states();
-    std::cout << "Updated deltas: ";
-    print_deltas();
-    std::cout << "Updated rates: ";
-    print_rates();
-    std::cout << "Updated OP: " << std::setprecision(4) << get_order_parameter() << '\n';
-
-    transition_site(4);
-    update_neighbors(4);
-    std::cout << "\nUpdated states: ";
-    print_states();
-    std::cout << "Updated deltas: ";
-    print_deltas();
-    std::cout << "Updated rates: ";
-    print_rates();
-    std::cout << "Updated OP: " << std::setprecision(4) << get_order_parameter() << '\n';
+    std::cout << "N = " << N << "    K = " << K << "    p = " << p << '\n';
+    std::cout << "Initial populations: ";
+    std::cout << states.pop[0] << ' '
+	      << states.pop[1] << ' '
+	      << states.pop[2] << '\n';
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << "Initial order parameter: " << get_order_parameter() << '\n';
 
     return 0;
 }
