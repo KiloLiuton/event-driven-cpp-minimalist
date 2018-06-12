@@ -11,7 +11,7 @@
 #include <pcg_random.hpp>
 
 // include the desired topology file and compile before running
-#include "20-3-0_0-seed_42.h"
+#include "7-2-0_0-seed_42.h"
 // GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
@@ -86,7 +86,7 @@ void initialize_everything(double a) {
     initialize_deltas();
     std::cout << "Deltas initialized!\n";
     initialize_rates();
-    std::cout << "Rates initialized!\n";
+    std::cout << "Rates initialized!\n\n";
 }
 
 void initialize_states() {
@@ -131,7 +131,7 @@ void initialize_deltas() {
 
 void initialize_rates_table(double a) {
     uint16_t k = K_MIN;
-    uint16_t d = -K_MIN;
+    int16_t d = -K_MIN;
     for (uint32_t i = 0; i < NUM_POSSIBLE_TRANSITIONS; i++) {
         if (d > k) {
             k++;
@@ -146,15 +146,11 @@ double get_rate_from_table(uint16_t i) {
     const uint16_t k = NUMBER_OF_NEIGHBORS[i];
     const int16_t d = deltas[i];
     uint32_t idx = (k - K_MIN) * (k + K_MIN) + k + d;
-    if (idx < 0 || i >= NUM_POSSIBLE_TRANSITIONS) {
-	std::cout << "FOOOOO\n";
-	std::cout << i << ' ' << k << ' ' << d << ' ' << idx << '\n';
-    }
     return ratesTable[idx];
 }
 
 void initialize_rates() {
-    rates.sum = 0;
+    rates.sum = .0;
     for (uint16_t i = 0; i < N; i++) {
         const double r = get_rate_from_table(i);
         rates.array[i] = r;
@@ -176,7 +172,7 @@ void update_site(uint16_t i) {
     states.array[i] = nextState;
     states.pop[state]--;
     states.pop[nextState]++;
-    uint16_t newDelta = 0;
+    int16_t newDelta = 0;
     for (uint16_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
         uint8_t nbState = states.array[NEIGHBOR_LIST[j]];
         if (nbState == nextState) {
@@ -225,13 +221,14 @@ uint16_t transitionIndex() {
     for (uint16_t i = 0; i < N; i++) {
         rates.sum += rates.array[i];
     }
+    std::cout << "Rates reset due to Overflow.";
     return N - 1;
 }
 
 void transition_site() {
     uint16_t i = transitionIndex();
     update_site(i);
-    update_neighbors(i);
+    // update_neighbors(i);
 }
 
 void print_states() {
@@ -267,21 +264,20 @@ void greeting() {
 }
 
 int main(int argc, char* argv[]) {
-
+    // Simulation parameters
     unsigned int random_stream = 2u;
     unsigned int dynamics_seed = 20u;
+    size_t ITERS = 1000000;
+    double coupling = 0.8;
+
     RNG.seed(dynamics_seed, random_stream);
 
-    double coupling = 0.8;
     initialize_everything(coupling);
 
-    unsigned int ITERS = 10;
     greeting();
+
     for (size_t i = 0; i < ITERS; ++i) {
 	transition_site();
-	std::cout << states.pop[0] << ' '
-	          << states.pop[1] << ' '
-		  << states.pop[2] << '\n';
     }
 
     /*
@@ -296,7 +292,7 @@ int main(int argc, char* argv[]) {
     }
 
     OParameterLog.close();
-
     */
+
     return 0;
 }
