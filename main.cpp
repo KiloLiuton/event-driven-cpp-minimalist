@@ -1,6 +1,6 @@
-#include <map>
 #include <iostream>
 #include <fstream>
+#include <stdio.h>
 #include <iomanip>
 #include <algorithm>
 #include <array>
@@ -11,7 +11,7 @@
 #include <pcg_random.hpp>
 
 // include the desired topology file and compile before running
-#include "7-2-0_0-seed_42.h"
+#include "20-3-0_0-seed_42.h"
 // GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
@@ -28,29 +28,25 @@ struct states {
     uint8_t array[N];
     uint16_t pop[3];
 } states;
-
 struct rates {
     double array[N];
     double sum;
 } rates;
-
 int16_t deltas[N];
-
 double ratesTable[NUM_POSSIBLE_TRANSITIONS];
-
+double timeElapsed;
 std::uniform_real_distribution<double> UNIFORM(0,1);
-
 pcg32 RNG(42u, 52u);
 
 // INITIALIZER & GETTER FUNCTIONS
 /* generates a new random configuration and update all dependencies */
-void initialize_everything(double coupling_strength);
+void initialize_everything(double coupling);
 /* populate the states vector with a random configuration */
 void initialize_states();
 /* populates delta vector (states must be populated) */
 void initialize_deltas();
 /* populates rates table */
-void initialize_rates_table(double coupling_strength);
+void initialize_rates_table(double coupling);
 /* get the transition rate for a site by accessing deltas vector and then
  * building the access index of the ratesTable. */
 double get_rate_from_table(int site);
@@ -69,18 +65,37 @@ void update_neighbors(uint16_t site_index);
 uint16_t transitionIndex();
 /* performs a complete step of the event driven simulation */
 void transition_site();
+/* execute a trial:
+ * ITERS (pos integer) - execute ITERS steps with logging
+ * BURN  (pos integer) - execute BURN steps without logging
+ * reset (boolean)     - if false the current state of the lattice will be used
+ *                       (this allows you to resume a simulation)
+ * */
+void run_trial(
+    size_t ITERS,
+    size_t BURN = 0,
+    bool reset = true
+);
 
-// PRINTER & DEBUGGING FUNCTIONS
+// PRINTER FUNCTIONS
 /* print the state for each site to stdout */
 void print_states();
-/* print transitions rates of every site */
-void print_rates();
 /* print deltas for all sites */
 void print_deltas();
+/* print transitions rates of every site */
+void print_rates();
+/* print a header to the trial output file (outputs results of a single run) */
+void print_file_header(FILE* file, double coupling);
 
 void initialize_everything(double a) {
+    timeElapsed = 0;
+    std::cout << "\nInitializing: "
+              << "N=" << N
+              << "  K=" << K
+              << "  p=" << p
+              << "  a=" << a << '\n';
     initialize_rates_table(a);
-    std::cout << "Rates table initialized! a = " << a << '\n';
+    std::cout << "Rates table initialized!\n";
     initialize_states();
     std::cout << "States initialized!\n";
     initialize_deltas();
@@ -221,14 +236,15 @@ uint16_t transitionIndex() {
     for (uint16_t i = 0; i < N; i++) {
         rates.sum += rates.array[i];
     }
-    std::cout << "Rates reset due to Overflow.";
+    std::cout << "Rates refreshed due to Overflow.";
     return N - 1;
 }
 
 void transition_site() {
     uint16_t i = transitionIndex();
+    timeElapsed += rates.sum;
     update_site(i);
-    // update_neighbors(i);
+    update_neighbors(i);
 }
 
 void print_states() {
@@ -253,8 +269,11 @@ void print_rates() {
     std::cout << '\n';
 }
 
+void print_file_header(FILE* f, double a) {
+    fprintf(f, "N=%d k=%d p=%.6f a=%.6f\n", N, K, p, a);
+}
+
 void greeting() {
-    std::cout << "N = " << N << "    K = " << K << "    p = " << p << '\n';
     std::cout << "Initial populations: ";
     std::cout << states.pop[0] << ' '
 	      << states.pop[1] << ' '
@@ -265,34 +284,51 @@ void greeting() {
 
 int main(int argc, char* argv[]) {
     // Simulation parameters
-    unsigned int random_stream = 2u;
-    unsigned int dynamics_seed = 20u;
-    size_t ITERS = 1000000;
-    double coupling = 0.8;
+    const unsigned int random_stream = 2u;
+    const unsigned int dynamics_seed = 20u;
+    const size_t BURN = 10*N*N;
+    const size_t ITERS = 10*N*N;
+    const size_t SAVE_INTERVAL = N/4;
+    const double coupling = 1.8;
 
     RNG.seed(dynamics_seed, random_stream);
 
     initialize_everything(coupling);
 
     greeting();
+    std::cout << "Starting simulation with:"
+              << "  BURN=" << BURN
+              << "  ITERS=" << ITERS << '\n';
 
-    for (size_t i = 0; i < ITERS; ++i) {
+    for (size_t i = 0; i < BURN; ++i) {
 	transition_site();
     }
 
-    /*
-    std::ofstream OParameterLog;
-    OParameterLog.open("OParameter.dat");
+    char file_name[50];
+    sprintf(file_name, "N=%dK=%dp=%3.3fa=%3.3f.dat", N, K, p, coupling);
 
+    FILE* OParameterLog;
+    if (std::ifstream(file_name)) {
+        // file exists
+        // TODO: append something to filename to make it unique
+        std::cout << "Log file already exists! When TODO is done we will\n"
+                     "create a new one...\n";
+    }
+    OParameterLog = std::fopen(file_name, "w");
+    print_file_header(OParameterLog, coupling);
+
+    uint16_t save_counter = 1;
     for (size_t i = 0; i < ITERS; ++i) {
 	transition_site();
-	double r = get_order_parameter();
-	std::cout << r << ' ';
-	// OParameterLog << "foo" << '\n';
+        save_counter++;
+        if (save_counter == SAVE_INTERVAL) {
+            double r = get_order_parameter();
+            std::fprintf(OParameterLog, "%6.6f,%d,%d\n", r, states.pop[0], states.pop[1]);
+            save_counter = 1;
+        }
     }
 
-    OParameterLog.close();
-    */
+    std::fclose(OParameterLog);
 
     return 0;
 }
