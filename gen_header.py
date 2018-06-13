@@ -7,7 +7,8 @@ import os
 
 try:
     N, K, p = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
-    if len(sys.argv == 5):
+    s = 42
+    if len(sys.argv) == 5:
         s = int(sys.argv[4])
     else:
         s = 42
@@ -18,24 +19,25 @@ random.seed(s)
 
 def writeHeader(fname):
     with open(fname, 'w') as f:
+        K_MAX = max(NUMBER_OF_NEIGHBORS)
+        K_MIN = min(NUMBER_OF_NEIGHBORS)
         f.write('#ifndef TOPOLOGY_H\n#define TOPOLOGY_H\n\n#include <iostream>\n\n')
         f.write('constexpr uint16_t N = %d\n;' % N)
         f.write('constexpr uint16_t K = %d\n;' % K)
         f.write('constexpr float p = %d\n;' % p)
-        f.write('constexpr uint16_t NEIGHBOR_LIST[] = {\n')
-        f.write(str(NEIGHBOR_LIST).strip('[]') + '\n')
-        f.write('};\n')
+        f.write('constexpr uint16_t K_MAX = %d;\n' % K_MAX)
+        f.write('constexpr uint16_t K_MIN = %d;\n' % K_MIN)
+        f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n' % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
+        f.write('constexpr uint32_t TOPOLOGY_SEED = %d;\n\n' % s)
         f.write('constexpr uint16_t INDEXES[] = {\n')
         f.write(str(INDEXES).strip('[]') + '\n')
         f.write('};\n')
         f.write('constexpr uint16_t NUMBER_OF_NEIGHBORS[] = {\n')
         f.write(str(NUMBER_OF_NEIGHBORS).strip('[]') + '\n')
         f.write('};\n')
-        K_MAX = max(NUMBER_OF_NEIGHBORS)
-        K_MIN = min(NUMBER_OF_NEIGHBORS)
-        f.write('constexpr uint16_t K_MAX = %d;\n' % K_MAX)
-        f.write('constexpr uint16_t K_MIN = %d;\n' % K_MIN)
-        f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n\n' % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
+        f.write('constexpr uint16_t NEIGHBOR_LIST[] = {\n')
+        f.write(str(NEIGHBOR_LIST).strip('[]') + '\n')
+        f.write('};\n')
         f.write('#endif')
 
 
