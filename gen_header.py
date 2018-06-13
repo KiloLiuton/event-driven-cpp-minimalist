@@ -29,7 +29,7 @@ def writeHeader(fname):
         f.write('constexpr uint16_t K_MIN = %d;\n' % K_MIN)
         f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n' % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
         f.write('constexpr uint32_t TOPOLOGY_SEED = %d;\n\n' % s)
-        f.write('constexpr uint16_t INDEXES[] = {\n')
+        f.write('constexpr uint32_t INDEXES[] = {\n')
         f.write(str(INDEXES).strip('[]') + '\n')
         f.write('};\n')
         f.write('constexpr uint16_t NUMBER_OF_NEIGHBORS[] = {\n')

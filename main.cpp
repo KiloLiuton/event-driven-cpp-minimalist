@@ -11,7 +11,7 @@
 #include <pcg_random.hpp>
 
 // include the desired topology file and compile before running
-#include "2000-200-0_0-seed_42.h"
+#include "8000-800-0_0-seed_42.h"
 // GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
@@ -34,7 +34,7 @@ struct rates {
 } rates;
 int16_t deltas[N];
 double ratesTable[NUM_POSSIBLE_TRANSITIONS];
-double timeElapsed;
+double time_elapsed;
 std::uniform_real_distribution<double> UNIFORM(0,1);
 pcg32 RNG(42u, 52u);
 
@@ -53,7 +53,7 @@ double get_rate_from_table(int site);
 /* populates the rates vector */
 void initialize_rates();
 /* calculates de order parameter for the current state of the system */
-double get_order_parameter();
+double get_squared_op();
 
 // DYNAMICS FUNCTIONS
 /* updates deltas, rates and states for a SINGLE site undergoing transition */
@@ -85,10 +85,10 @@ void print_deltas();
 /* print transitions rates of every site */
 void print_rates();
 /* print a header to the trial output file (outputs results of a single run) */
-void print_file_header(FILE* file, double coupling);
+void print_file_header(FILE* file, double coupling, int BURN, int ITERS);
 
 void initialize_everything(double a) {
-    timeElapsed = 0;
+    time_elapsed = 0;
     std::cout << "\nInitializing: "
               << "N=" << N
               << "  K=" << K
@@ -128,7 +128,7 @@ void initialize_states() {
 void initialize_deltas() {
     for (uint16_t i = 0; i < N; i++) {
         const uint16_t ki = NUMBER_OF_NEIGHBORS[i];
-        const uint16_t ind = INDEXES[i];
+        const uint32_t ind = INDEXES[i];
         const int8_t state = states.array[i];
         const int8_t nextState = (state+1)%3;
         int16_t d = 0;
@@ -173,15 +173,14 @@ void initialize_rates() {
     }
 }
 
-double get_order_parameter() {
+double get_squared_op() {
     uint16_t N0 = states.pop[0];
     uint16_t N1 = states.pop[1];
     uint16_t N2 = states.pop[2];
-    return sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
+    return (double) (N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / (N*N);
 }
 
 void update_site(uint16_t i) {
-    std::cout << "UPDATE SITE CALLED\n";
     uint8_t state = states.array[i];
     uint8_t nextState = (state + 1) % 3;
     uint16_t ki = NUMBER_OF_NEIGHBORS[i];
@@ -189,7 +188,7 @@ void update_site(uint16_t i) {
     states.pop[state]--;
     states.pop[nextState]++;
     int16_t newDelta = 0;
-    for (uint16_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
+    for (uint32_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
         uint8_t nbState = states.array[NEIGHBOR_LIST[j]];
         if (nbState == nextState) {
             newDelta--;
@@ -204,10 +203,9 @@ void update_site(uint16_t i) {
 }
 
 void update_neighbors(uint16_t i) {
-    std::cout << "UPDATE NEIGHBORS CALLED\n";
     // here we assume that site 'i' has already undergone transition
     uint8_t newState = states.array[i];
-    for (uint16_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
+    for (uint32_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
         uint16_t nbIndex = NEIGHBOR_LIST[j];
         uint16_t nbState = states.array[nbIndex];
         if (nbState == newState) {
@@ -226,7 +224,6 @@ void update_neighbors(uint16_t i) {
 }
 
 uint16_t transitionIndex() {
-    std::cout << "TRANSITION INDEX CALLED\n";
     double partialRate = 0;
     double g = 0;
     double randomRate = UNIFORM(RNG) * rates.sum;
@@ -244,9 +241,8 @@ uint16_t transitionIndex() {
 }
 
 void transition_site() {
-    std::cout << "TRANSITION CALLED\n";
     uint16_t i = transitionIndex();
-    timeElapsed += rates.sum;
+    time_elapsed += rates.sum;
     update_site(i);
     update_neighbors(i);
 }
@@ -273,8 +269,9 @@ void print_rates() {
     std::cout << '\n';
 }
 
-void print_file_header(FILE* f, double a) {
-    fprintf(f, "N=%d k=%d p=%.6f a=%.6f\n", N, K, p, a);
+void print_file_header(FILE* f, double a, int BURN, int ITERS) {
+    fprintf(f, "N=%d,k=%d,p=%.6f,a=%.6f,BURN=%d,ITERS=%d\n", N, K, p, a, BURN, ITERS);
+    fprintf(f, "r**2,N0,N1,time\n");
 }
 
 void greeting() {
@@ -283,19 +280,20 @@ void greeting() {
               << states.pop[1] << ' '
               << states.pop[2] << '\n';
     std::cout << std::fixed << std::setprecision(4);
-    std::cout << "Initial order parameter: " << get_order_parameter() << '\n';
+    std::cout << std::setprecision(10) << "Initial order parameter: " << get_squared_op() << '\n';
 }
 
 int main(int argc, char* argv[]) {
     // Simulation parameters
+    const double coupling = 1.8;
     const unsigned int random_stream = 2u;
     const unsigned int dynamics_seed = 20u;
-    //const size_t BURN = 2*N*std::log(N);
-    //const size_t ITERS = 2*N*std::log(N);
-    const size_t BURN = 1;
-    const size_t ITERS = 1;
+    //const size_t BURN = N*std::log(N);
+    const size_t BURN = 0;
+    const size_t ITERS = 10*N*std::log(N);
+    //const size_t SAVE_INTERVAL = std::log(N);
     const size_t SAVE_INTERVAL = 1;
-    const double coupling = 1.8;
+    const size_t PROGRESS_INTERVAL = ITERS/20;
 
     RNG.seed(dynamics_seed, random_stream);
 
@@ -307,39 +305,46 @@ int main(int argc, char* argv[]) {
               << "  ITERS=" << ITERS << '\n';
 
     for (size_t i = 0; i < BURN; ++i) {
-        std::cout << "BURNING\n";
         transition_site();
     }
 
+    /////////////////////////////// open log files ////////////////////////////
     char file_name[50];
     sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f.dat", N, K, p, coupling);
     file_name[16] = '_';
     file_name[23] = '_';
-    std::cout << "FOOOO" << file_name << '\n';
 
     FILE* OParameterLog;
     int counter = 1;
     while (std::ifstream(file_name)) {
-        // file exists
         sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f(%d).dat", N, K, p, coupling, counter);
         file_name[16] = '_';
         file_name[23] = '_';
         counter++;
     }
     OParameterLog = std::fopen(file_name, "w");
-    print_file_header(OParameterLog, coupling);
+    print_file_header(OParameterLog, coupling, BURN, ITERS);
 
-    uint16_t log_counter = 1;
+    /////////////////////////////// begin iterations //////////////////////////
+    int log_counter = 0;
+    int progress_counter = 0;
     for (size_t i = 0; i < ITERS; ++i) {
         transition_site();
         log_counter++;
+        progress_counter++;
+
         if (log_counter == SAVE_INTERVAL) {
-            double r = get_order_parameter();
-            std::fprintf(OParameterLog, "%6.6f,%d,%d\n", r, states.pop[0], states.pop[1]);
-            log_counter = 1;
+            double r = get_squared_op();
+            std::fprintf(OParameterLog, "%16.16f,%d,%d,%f\n", r, states.pop[0], states.pop[1], time_elapsed);
+            log_counter = 0;
+        }
+        if (progress_counter == PROGRESS_INTERVAL) {
+            std::cout << std::setprecision(1) << "[" << (float) i/ITERS*100 << "%]\n";
+	    progress_counter = 0;
         }
     }
 
+    ////////////////////////////// close log files ////////////////////////////
     std::fclose(OParameterLog);
 
     return 0;
