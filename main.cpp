@@ -276,8 +276,8 @@ void print_file_header(FILE* f, double a) {
 void greeting() {
     std::cout << "Initial populations: ";
     std::cout << states.pop[0] << ' '
-	      << states.pop[1] << ' '
-	      << states.pop[2] << '\n';
+              << states.pop[1] << ' '
+              << states.pop[2] << '\n';
     std::cout << std::fixed << std::setprecision(4);
     std::cout << "Initial order parameter: " << get_order_parameter() << '\n';
 }
@@ -301,30 +301,33 @@ int main(int argc, char* argv[]) {
               << "  ITERS=" << ITERS << '\n';
 
     for (size_t i = 0; i < BURN; ++i) {
-	transition_site();
+        transition_site();
     }
 
     char file_name[50];
-    sprintf(file_name, "N=%dK=%dp=%3.3fa=%3.3f.dat", N, K, p, coupling);
+    sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f.dat", N, K, p, coupling);
+    file_name[16] = '_';
+    file_name[23] = '_';
+    std::cout << "FOOOO" << file_name << '\n';
 
     FILE* OParameterLog;
-    if (std::ifstream(file_name)) {
+    int counter = 1;
+    while (std::ifstream(file_name)) {
         // file exists
-        // TODO: append something to filename to make it unique
-        std::cout << "Log file already exists! When TODO is done we will\n"
-                     "create a new one...\n";
+        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f(%d).dat", N, K, p, coupling, counter);
+        counter++;
     }
     OParameterLog = std::fopen(file_name, "w");
     print_file_header(OParameterLog, coupling);
 
-    uint16_t save_counter = 1;
+    uint16_t log_counter = 1;
     for (size_t i = 0; i < ITERS; ++i) {
-	transition_site();
-        save_counter++;
-        if (save_counter == SAVE_INTERVAL) {
+        transition_site();
+        log_counter++;
+        if (log_counter == SAVE_INTERVAL) {
             double r = get_order_parameter();
             std::fprintf(OParameterLog, "%6.6f,%d,%d\n", r, states.pop[0], states.pop[1]);
-            save_counter = 1;
+            log_counter = 1;
         }
     }
 
