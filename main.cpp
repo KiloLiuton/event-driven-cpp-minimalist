@@ -11,7 +11,7 @@
 #include <pcg_random.hpp>
 
 // include the desired topology file and compile before running
-#include "20-3-0_0-seed_42.h"
+#include "2000-200-0_0-seed_42.h"
 // GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
@@ -181,6 +181,7 @@ double get_order_parameter() {
 }
 
 void update_site(uint16_t i) {
+    std::cout << "UPDATE SITE CALLED\n";
     uint8_t state = states.array[i];
     uint8_t nextState = (state + 1) % 3;
     uint16_t ki = NUMBER_OF_NEIGHBORS[i];
@@ -203,6 +204,7 @@ void update_site(uint16_t i) {
 }
 
 void update_neighbors(uint16_t i) {
+    std::cout << "UPDATE NEIGHBORS CALLED\n";
     // here we assume that site 'i' has already undergone transition
     uint8_t newState = states.array[i];
     for (uint16_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
@@ -224,6 +226,7 @@ void update_neighbors(uint16_t i) {
 }
 
 uint16_t transitionIndex() {
+    std::cout << "TRANSITION INDEX CALLED\n";
     double partialRate = 0;
     double g = 0;
     double randomRate = UNIFORM(RNG) * rates.sum;
@@ -241,6 +244,7 @@ uint16_t transitionIndex() {
 }
 
 void transition_site() {
+    std::cout << "TRANSITION CALLED\n";
     uint16_t i = transitionIndex();
     timeElapsed += rates.sum;
     update_site(i);
@@ -286,9 +290,11 @@ int main(int argc, char* argv[]) {
     // Simulation parameters
     const unsigned int random_stream = 2u;
     const unsigned int dynamics_seed = 20u;
-    const size_t BURN = 10*N*N;
-    const size_t ITERS = 10*N*N;
-    const size_t SAVE_INTERVAL = N/4;
+    //const size_t BURN = 2*N*std::log(N);
+    //const size_t ITERS = 2*N*std::log(N);
+    const size_t BURN = 1;
+    const size_t ITERS = 1;
+    const size_t SAVE_INTERVAL = 1;
     const double coupling = 1.8;
 
     RNG.seed(dynamics_seed, random_stream);
@@ -301,6 +307,7 @@ int main(int argc, char* argv[]) {
               << "  ITERS=" << ITERS << '\n';
 
     for (size_t i = 0; i < BURN; ++i) {
+        std::cout << "BURNING\n";
         transition_site();
     }
 
