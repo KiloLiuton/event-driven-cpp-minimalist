@@ -315,6 +315,8 @@ int main(int argc, char* argv[]) {
     while (std::ifstream(file_name)) {
         // file exists
         sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f(%d).dat", N, K, p, coupling, counter);
+        file_name[16] = '_';
+        file_name[23] = '_';
         counter++;
     }
     OParameterLog = std::fopen(file_name, "w");
