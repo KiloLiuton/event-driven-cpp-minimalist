@@ -1,3 +1,10 @@
+#ifndef COUPLING
+#define COUPLING 1.6
+#endif
+//#ifndef HEADER
+//#define HEADER "20-3-0_0-seed_42.h"
+//#endif
+
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
@@ -11,7 +18,7 @@
 #include <pcg_random.hpp>
 
 // include the desired topology file and compile before running
-#include "8000-800-0_0-seed_42.h"
+//#include HEADER
 // GLOBAL VARIABLES declared in topology header:
 // uint16_t NEIGHBOR_LIST[];
 // uint32_t INDEXES[];
@@ -285,7 +292,6 @@ void greeting() {
 
 int main(int argc, char* argv[]) {
     // Simulation parameters
-    const double coupling = 1.8;
     const unsigned int random_stream = 2u;
     const unsigned int dynamics_seed = 20u;
     //const size_t BURN = N*std::log(N);
@@ -297,7 +303,7 @@ int main(int argc, char* argv[]) {
 
     RNG.seed(dynamics_seed, random_stream);
 
-    initialize_everything(coupling);
+    initialize_everything(COUPLING);
 
     greeting();
     std::cout << "Starting simulation with:"
@@ -310,20 +316,20 @@ int main(int argc, char* argv[]) {
 
     /////////////////////////////// open log files ////////////////////////////
     char file_name[50];
-    sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f.dat", N, K, p, coupling);
+    sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f.dat", N, K, p, COUPLING);
     file_name[16] = '_';
     file_name[23] = '_';
 
     FILE* OParameterLog;
     int counter = 1;
     while (std::ifstream(file_name)) {
-        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f(%d).dat", N, K, p, coupling, counter);
+        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f(%d).dat", N, K, p, COUPLING, counter);
         file_name[16] = '_';
         file_name[23] = '_';
         counter++;
     }
     OParameterLog = std::fopen(file_name, "w");
-    print_file_header(OParameterLog, coupling, BURN, ITERS);
+    print_file_header(OParameterLog, COUPLING, BURN, ITERS);
 
     /////////////////////////////// begin iterations //////////////////////////
     int log_counter = 0;
