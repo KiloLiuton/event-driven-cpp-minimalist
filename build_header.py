@@ -30,23 +30,12 @@ def writeHeader(fname, N, K, p, seed, INDEXES, NUMBER_OF_NEIGHBORS, NEIGHBOR_LIS
         f.write('#endif')
 
 
-def createHeader():
-    try:
-        N, K, p = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
-        s = 42
-        if len(sys.argv) == 5:
-            s = int(sys.argv[4])
-        else:
-            s = 42
-    except:
-        sys.exit('Usage - ./gen_header.py N K p s=42 (optional)')
-
+def createHeader(N, K, p, s):
     random.seed(s)
-
     header_filename = ('%05d'%N + '-'
                      + '%04d'%K + '-'
                      + '_'.join(str(p).split('.')) + '-seed_'
-                     + str(s) + '.h')
+                     + '%d'%s + '.h')
 
     if header_filename in os.listdir():
         print('File already exists! No need to create it :)')
@@ -94,7 +83,16 @@ def createHeader():
 
     print('Writing to file %s' % header_filename)
     writeHeader(header_filename, N, K, p, s, INDEXES, NUMBER_OF_NEIGHBORS, NEIGHBOR_LIST)
-    print('All done.')
+    print('All done.\n')
 
 if __name__ == "__main__":
-    createHeader()
+    try:
+        N, K, p = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
+        s = 42
+        if len(sys.argv) == 5:
+            s = int(sys.argv[4])
+        else:
+            s = 42
+    except:
+        sys.exit('Usage - ./gen_header.py N K p s=42 (optional)')
+    createHeader(N, K, p, s)
