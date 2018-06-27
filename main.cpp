@@ -1,6 +1,7 @@
 #ifndef COUPLING
 #define COUPLING 1.6
 #endif
+#define SIN_PHI1 0.8660254037844387
 //#ifndef HEADER
 //#define HEADER "20-3-0_0-seed_42.h"
 //#endif
@@ -39,28 +40,48 @@ struct rates {
     double array[N];
     double sum;
 } rates;
+typedef struct {
+    double r;
+    double psi;
+} trial;
+typedef struct {
+    double r;
+    double r2;
+    double psi;
+} batch;
 int16_t deltas[N];
 double ratesTable[NUM_POSSIBLE_TRANSITIONS];
-double time_elapsed;
 std::uniform_real_distribution<double> UNIFORM(0,1);
 pcg32 RNG(42u, 52u);
 
 // INITIALIZER & GETTER FUNCTIONS
 /* generates a new random configuration and update all dependencies */
-void initialize_everything(double coupling);
+void initialize_everything(
+    double coupling,
+    size_t seed,
+    size_t stream,
+    bool verbose = false
+);
 /* populate the states vector with a random configuration */
 void initialize_states();
 /* populates delta vector (states must be populated) */
 void initialize_deltas();
-/* populates rates table */
+/* populates rates table (only necessary if coupling changed) */
 void initialize_rates_table(double coupling);
 /* get the transition rate for a site by accessing deltas vector and then
  * building the access index of the ratesTable. */
 double get_rate_from_table(int site);
 /* populates the rates vector */
 void initialize_rates();
-/* calculates de order parameter for the current state of the system */
+/* calculates the square of the order parameter for the current state of
+ * the system */
 double get_squared_op();
+/* calculates the order parameter for the current state of the system */
+double get_op();
+/* calculates the psi order parameter for the current state of the system */
+double get_squared_psi_op();
+/* calculates the psi order parameter for the current state of the system */
+double get_psi_op();
 
 // DYNAMICS FUNCTIONS
 /* updates deltas, rates and states for a SINGLE site undergoing transition */
@@ -72,17 +93,27 @@ void update_neighbors(uint16_t site_index);
 uint16_t transitionIndex();
 /* performs a complete step of the event driven simulation */
 void transition_site();
-/* execute a trial:
- * ITERS (pos integer) - execute ITERS steps with logging
- * BURN  (pos integer) - execute BURN steps without logging
- * reset (boolean)     - if false the current state of the lattice will be used
- *                       (this allows you to resume a simulation)
- * */
-void run_trial(
-    size_t ITERS,
-    size_t BURN = 0,
-    bool reset = true
-);
+/* run a trial for ITERS time steps after burning BURN steps and save results
+ * to log_file after every SAVE_INTERVAL steps. Logged columns are:
+ * r**2,N0,N1,time */
+void log_trial_to_file(
+        size_t ITERS,
+        size_t BURN,
+        size_t seed,
+        size_t stream,
+        FILE* log_file,
+        size_t SAVE_INTERVAL
+    );
+/* run a trial and return the average order parameter after BURN iters */
+trial run_trial(
+        size_t ITERS,
+        size_t BURN,
+        size_t seed,
+        size_t stream,
+        size_t SAVE_INTERVAL
+    );
+/* execute a batch of trials and record the average order parameter */
+batch run_batch(size_t TRIALS, size_t ITERS, size_t BURN, double a);
 
 // PRINTER FUNCTIONS
 /* print the state for each site to stdout */
@@ -93,25 +124,40 @@ void print_deltas();
 void print_rates();
 /* print a header to the trial output file (outputs results of a single run) */
 void print_file_header(FILE* file, double coupling, int BURN, int ITERS);
+/* print a header to the batches output file (many trials for many couplings) */
+void print_batches_file_header(FILE* file, int TRIALS, int BURN, int ITERS);
 
-void initialize_everything(double a) {
-    time_elapsed = 0;
-    std::cout << "\nInitializing: "
-              << "N=" << N
-              << "  K=" << K
-              << "  p=" << p
-              << "  a=" << a << '\n';
+void initialize_everything(double a, size_t s1, size_t s2, bool verbose) {
+    RNG.seed(s1, s2);
+    if (verbose) {
+        std::cout << "\nInitializing: "
+                  << "N=" << N
+                  << "  K=" << K
+                  << "  p=" << p
+                  << "  a=" << a << '\n';
+    }
     initialize_rates_table(a);
-    std::cout << "Rates table initialized!\n";
+    if (verbose) {
+        std::cout << "Rates table initialized!\n";
+    }
     initialize_states();
-    std::cout << "States initialized!\n";
+    if (verbose) {
+        std::cout << "States initialized!\n";
+    }
     initialize_deltas();
-    std::cout << "Deltas initialized!\n";
+    if (verbose) {
+        std::cout << "Deltas initialized!\n";
+    }
     initialize_rates();
-    std::cout << "Rates initialized!\n\n";
+    if (verbose) {
+        std::cout << "Rates initialized!\n\n";
+    }
 }
 
 void initialize_states() {
+    states.pop[0] = 0;
+    states.pop[1] = 0;
+    states.pop[2] = 0;
     for (uint16_t i = 0; i < N; i++) {
         uint8_t state = RNG(3);
         states.array[i] = state;
@@ -187,6 +233,63 @@ double get_squared_op() {
     return (double) (N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / (N*N);
 }
 
+double get_op() {
+    uint16_t N0 = states.pop[0];
+    uint16_t N1 = states.pop[1];
+    uint16_t N2 = states.pop[2];
+    return (double) std::sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
+}
+
+double get_squared_psi_op() {
+    double s1 = 0;
+    double s2 = 0;
+    for (size_t i = 0; i < N; i++) {
+        uint8_t s = states.array[i];
+        switch (s) {
+        case 0:
+            s1 += rates.array[i];
+            break;
+        case 1:
+            s1 += -0.5 * rates.array[i];
+            s2 += SIN_PHI1 * rates.array[i];
+            break;
+        case 2:
+            s1 += -0.5 * rates.array[i];
+            s2 += -SIN_PHI1 * rates.array[i];
+            break;
+        default:
+            std::cout << (int) s << " <- Unknown state in get_squared_psi_op!\n";
+            break;
+        }
+    }
+    return (std::pow(s1, 2.0) + std::pow(s2, 2.0)) / (N*N);
+}
+
+double get_psi_op() {
+    double s1 = 0;
+    double s2 = 0;
+    for (size_t i = 0; i < N; i++) {
+        uint8_t s = states.array[i];
+        switch (s) {
+        case 0:
+            s1 += rates.array[i];
+            break;
+        case 1:
+            s1 += -0.5 * rates.array[i];
+            s2 += SIN_PHI1 * rates.array[i];
+            break;
+        case 2:
+            s1 += -0.5 * rates.array[i];
+            s2 += -SIN_PHI1 * rates.array[i];
+            break;
+        default:
+            std::cout << (int) s << " <- Unknown state in get_psi_op!\n";
+            break;
+        }
+    }
+    return std::sqrt(std::pow(s1, 2.0) + std::pow(s2, 2.0)) / N;
+}
+
 void update_site(uint16_t i) {
     uint8_t state = states.array[i];
     uint8_t nextState = (state + 1) % 3;
@@ -212,7 +315,7 @@ void update_site(uint16_t i) {
 void update_neighbors(uint16_t i) {
     // here we assume that site 'i' has already undergone transition
     uint8_t newState = states.array[i];
-    for (uint32_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
+    for (uint32_t j = INDEXES[i]; j<INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
         uint16_t nbIndex = NEIGHBOR_LIST[j];
         uint16_t nbState = states.array[nbIndex];
         if (nbState == newState) {
@@ -249,9 +352,101 @@ uint16_t transitionIndex() {
 
 void transition_site() {
     uint16_t i = transitionIndex();
-    time_elapsed += rates.sum;
     update_site(i);
     update_neighbors(i);
+}
+
+void log_trial_to_file(
+            size_t I, size_t B,
+            size_t seed, size_t stream,
+            FILE* f, size_t SAVE_INTERVAL
+        ) {
+    std::cout << "Logging trial to file with:"
+              << "  BURN=" << B
+              << "  ITERS=" << I << '\n';
+
+    size_t PROGRESS_INTERVAL = (I+B)/20;
+    size_t log_counter = 1;
+    size_t progress_counter = 1;
+    double time_elapsed = 0;
+    for (size_t i = 0; i < (I + B); ++i) {
+        double dt = 1 / rates.sum;
+        time_elapsed += dt;
+        transition_site();
+
+        if (log_counter == SAVE_INTERVAL) {
+            double r = get_squared_op();
+            std::fprintf(
+                    f, "%16.16f,%d,%d,%f,%f\n", r, states.pop[0], states.pop[1], time_elapsed, dt
+                );
+            log_counter = 0;
+        }
+        if (progress_counter == PROGRESS_INTERVAL) {
+            std::cout << std::setprecision(1) << "[" << (float) i/(I+B)*100 << "%]\n";
+	    progress_counter = 0;
+        }
+        log_counter++;
+        progress_counter++;
+    }
+}
+
+trial run_trial(
+            size_t I, size_t B,
+            size_t seed, size_t stream,
+            size_t SAVE_INTERVAL
+        ) {
+    RNG.seed(seed, stream);
+    initialize_states();
+    initialize_deltas();
+    initialize_rates();
+    for (size_t i = 0; i < B; i++) {
+        transition_site();
+    }
+    double R = 0;
+    double PSI = 0;
+    double time_elapsed = 0;
+    for (size_t i = 0; i < I; i++) {
+        double dt = 1.0 / rates.sum;
+        R += get_op() * dt;
+        PSI += get_psi_op() * dt;
+        time_elapsed += dt;
+        transition_site();
+    }
+    trial Trial;
+    Trial.r = R / time_elapsed;
+    Trial.psi = PSI / time_elapsed;
+
+    return Trial;
+}
+
+batch run_batch(size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B, double a) {
+    initialize_everything(a, 42u, 52u); // seeds for the initial state
+    size_t PROGRESS_INTERVAL = TRIALS / 5;
+    size_t progress_counter = 1;
+    double r = 0;
+    double r2 = 0;
+    double psi = 0;
+    for (size_t i = 0; i < TRIALS; i++) {
+        size_t seed = i;
+        size_t stream = i;
+        size_t SAVE_INTERVAL = std::max(4, (int) std::log(N) / 5);
+        trial Trial = run_trial(TRIAL_I, TRIAL_B, seed, stream, SAVE_INTERVAL);
+        r += Trial.r;
+        r2 += std::pow(Trial.r, 2.0);
+        psi += Trial.psi;
+
+        if (progress_counter == PROGRESS_INTERVAL) {
+            std::cout << std::setprecision(1)
+                      << "[" << (float) i/TRIALS*100 << "%]\n";
+            progress_counter = 0;
+        }
+        progress_counter++;
+    }
+    batch Batch;
+    Batch.r = r / TRIALS;
+    Batch.r2 = r2 / TRIALS;
+    Batch.psi = psi / TRIALS;
+    return Batch;
 }
 
 void print_states() {
@@ -278,7 +473,12 @@ void print_rates() {
 
 void print_file_header(FILE* f, double a, int BURN, int ITERS) {
     fprintf(f, "N=%d,k=%d,p=%.6f,a=%.6f,BURN=%d,ITERS=%d\n", N, K, p, a, BURN, ITERS);
-    fprintf(f, "r**2,N0,N1,time\n");
+    fprintf(f, "r**2,N0,N1,time,dt\n");
+}
+
+void print_batches_file_header(FILE* f, int TRIALS, int BURN, int ITERS) {
+    fprintf(f, "N=%d, K=%d, p=%f, TRIALS=%d, BURN=%d, ITERS=%d\n", N, K, p, TRIALS, BURN, ITERS);
+    fprintf(f, "<<r>>,<<r>^2>,<<psi>>,a\n");
 }
 
 void greeting() {
@@ -291,67 +491,97 @@ void greeting() {
 }
 
 int main(int argc, char* argv[]) {
-    // Simulation parameters
-    const unsigned int random_stream = 2u;
-    const unsigned int dynamics_seed = 20u;
-    //const size_t BURN = N*std::log(N);
-    const size_t BURN = 0;
+    //////////////////////////////////////////////////////////////////////////
+    // RUN AND SAVE A SINGLE TRIAL WITH COUPLING GIVEN BY THE MAKEFILE
+    // (DEFAULTS TO 1.6)
+    //////////////////////////////////////////////////////////////////////////
+    const unsigned int seed = 20u;
+    const unsigned int stream = 2u;
     const size_t ITERS = 10*N*std::log(N);
-    //const size_t SAVE_INTERVAL = std::log(N);
-    const size_t SAVE_INTERVAL = 1;
-    const size_t PROGRESS_INTERVAL = ITERS/20;
+    const size_t BURN = N*std::log(N);
+    const size_t SAVE_INTERVAL = 2;
 
-    RNG.seed(dynamics_seed, random_stream);
-
-    initialize_everything(COUPLING);
-
+    initialize_everything(COUPLING, seed, stream, true);
     greeting();
-    std::cout << "Starting simulation with:"
-              << "  BURN=" << BURN
-              << "  ITERS=" << ITERS << '\n';
 
-    for (size_t i = 0; i < BURN; ++i) {
-        transition_site();
-    }
-
-    /////////////////////////////// open log files ////////////////////////////
+    // create log file name
     char file_name[50];
-    sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f.dat", N, K, p, COUPLING);
-    file_name[16] = '_';
-    file_name[23] = '_';
-
-    FILE* OParameterLog;
+    sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v0.dat", N, K, p, COUPLING);
+    file_name[16] = file_name[23] = '_';
     int counter = 1;
     while (std::ifstream(file_name)) {
-        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f(%d).dat", N, K, p, COUPLING, counter);
+        sprintf(
+                file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v%d.dat",
+                N, K, p, COUPLING, counter
+            );
         file_name[16] = '_';
         file_name[23] = '_';
         counter++;
     }
-    OParameterLog = std::fopen(file_name, "w");
-    print_file_header(OParameterLog, COUPLING, BURN, ITERS);
 
-    /////////////////////////////// begin iterations //////////////////////////
-    int log_counter = 0;
-    int progress_counter = 0;
-    for (size_t i = 0; i < ITERS; ++i) {
-        transition_site();
-        log_counter++;
-        progress_counter++;
+    // log one trial to file
+    FILE* singleTrialFile;
+    singleTrialFile = std::fopen(file_name, "w");
+    print_file_header(singleTrialFile, COUPLING, BURN, ITERS);
+    log_trial_to_file(
+            ITERS, BURN, seed, stream,
+            singleTrialFile, SAVE_INTERVAL
+        );
+    std::fclose(singleTrialFile);
 
-        if (log_counter == SAVE_INTERVAL) {
-            double r = get_squared_op();
-            std::fprintf(OParameterLog, "%16.16f,%d,%d,%f\n", r, states.pop[0], states.pop[1], time_elapsed);
-            log_counter = 0;
-        }
-        if (progress_counter == PROGRESS_INTERVAL) {
-            std::cout << std::setprecision(1) << "[" << (float) i/ITERS*100 << "%]\n";
-	    progress_counter = 0;
-        }
+    //////////////////////////////////////////////////////////////////////////
+    // RUN A BATCH OF TRIALS FOR EACH DIFFERENT COUPLING STRENGTH
+    //////////////////////////////////////////////////////////////////////////
+
+    double A[] = {1.        , 1.0862069 , 1.17241379, 1.25862069, 1.34482759,
+                  1.4       , 1.43103448, 1.45      , 1.5       , 1.51724138,
+                  1.55      , 1.6       , 1.60344828, 1.68965517, 1.77586207,
+                  1.86206897, 1.94827586, 2.03448276, 2.12068966, 2.20689655,
+                  2.29310345, 2.37931034, 2.46551724, 2.55172414, 2.63793103,
+                  2.72413793, 2.81034483, 2.89655172, 2.98275862, 3.        ,
+                  3.051     , 3.06896552, 3.102     , 3.153     , 3.15517241,
+                  3.204     , 3.24137931, 3.32758621, 3.4137931 , 3.5       };
+    size_t lenA = 40;
+    const size_t TRIALS = 200;
+
+    // create filename and open file
+    char batches_file_name[70];
+    sprintf(batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v0.dat",
+            N, K, p, A[0], A[lenA-1]);
+    batches_file_name[24] = batches_file_name[31] = '_';
+    counter = 1;
+    while (std::ifstream(batches_file_name)) {
+        sprintf(
+                batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v%d.dat",
+                N, K, p, A[0], A[lenA-1], counter
+            );
+        batches_file_name[24] = '_';
+        batches_file_name[31] = '_';
+        counter++;
     }
+    FILE* batchesFile;
+    batchesFile = std::fopen(batches_file_name, "w");
+    print_batches_file_header(batchesFile, TRIALS, BURN, ITERS);
 
-    ////////////////////////////// close log files ////////////////////////////
-    std::fclose(OParameterLog);
+    // run batches
+    for (size_t i = 0; i < lenA; i++) {
+        double a = A[i];
+        std::cout << "\nBatch started: TRIALS=" << TRIALS
+                  << "  ITERS=" << ITERS
+                  << "  BURN=" << BURN
+                  << "  a=" << a
+                  << " [" << i + 1
+                  << "/" << lenA
+                  << "]\n";
+        batch Batch = run_batch(200, ITERS, N*std::log(N), a);
+        std::cout << std::setprecision(6)
+                  << "<<r>>: " << Batch.r
+                  << "    <<psi>>: " << Batch.psi << '\n';
+        std::fprintf(
+                batchesFile, "%6.6f,%6.6f,%6.6f,%6.6f\n", Batch.r, Batch.r2, Batch.psi, a
+            );
+    }
+    std::fclose(batchesFile);
 
     return 0;
 }

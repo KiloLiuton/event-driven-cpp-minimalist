@@ -11,9 +11,9 @@ def writeHeader(fname, N, K, p, seed, INDEXES, NUMBER_OF_NEIGHBORS, NEIGHBOR_LIS
         K_MAX = max(NUMBER_OF_NEIGHBORS)
         K_MIN = min(NUMBER_OF_NEIGHBORS)
         f.write('#ifndef TOPOLOGY_H\n#define TOPOLOGY_H\n\n#include <iostream>\n\n')
-        f.write('constexpr uint16_t N = %d\n;' % N)
-        f.write('constexpr uint16_t K = %d\n;' % K)
-        f.write('constexpr float p = %d\n;' % p)
+        f.write('constexpr uint16_t N = %d;\n' % N)
+        f.write('constexpr uint16_t K = %d;\n' % K)
+        f.write('constexpr float p = %d;\n' % p)
         f.write('constexpr uint16_t K_MAX = %d;\n' % K_MAX)
         f.write('constexpr uint16_t K_MIN = %d;\n' % K_MIN)
         f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n' % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
@@ -87,12 +87,10 @@ def createHeader(N, K, p, s):
 
 if __name__ == "__main__":
     try:
-        N, K, p = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
-        s = 42
-        if len(sys.argv) == 5:
-            s = int(sys.argv[4])
-        else:
-            s = 42
+        N = int(sys.argv[1])
+        K = int(sys.argv[2])
+        p = float(sys.argv[3])
+        s = int(sys.argv[4])
     except:
-        sys.exit('Usage - ./gen_header.py N K p s=42 (optional)')
+        sys.exit('Usage - ./build_header.py N K p s')
     createHeader(N, K, p, s)

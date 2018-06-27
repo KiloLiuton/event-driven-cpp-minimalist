@@ -1,5 +1,4 @@
 ODIR = obj
-EXECNAME = simulation
 
 _OBJ = main.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
@@ -12,17 +11,19 @@ a ?= 1.6
 N ?= 20
 K ?= 3
 p ?= 0.0
+s ?= 42
 a_ = $(shell echo $(a) | sed 's/\./_/')
 N_ = $(shell printf %05d $(N))
 K_ = $(shell printf %04d $(K))
 p_ = $(shell echo $(p) | sed 's/\./_/')
-h = "$(N_)-$(K_)-$(p_)-seed_42.h"
-prog = $(EXECNAME)-$(N_)-$(K_)-$(p_)-$(a_)
+s_ = $(shell printf %d $(s))
+h = "$(N_)-$(K_)-$(p_)-seed_$(s_).h"
+prog = "sim-$(N_)-$(K_)-$(p_)-$(a_)-graphseed_$(s_)"
 
 all: $(prog)
 
 $(h):
-	./build_header.py $(N) $(K) $(p)
+	./build_header.py $(N) $(K) $(p) $(s)
 
 # make objects. '$@' = left of ':', '$^' = first item on left of ':'
 $(ODIR)/%.o: %.cpp $(h)
@@ -34,4 +35,4 @@ $(prog): $(OBJ)
 
 .PHONY: clean
 clean:
-	rm -f $(EXECNAME) $(ODIR)/*.o
+	rm -f $(prog) $(ODIR)/*.o
