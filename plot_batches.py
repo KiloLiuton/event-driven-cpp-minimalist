@@ -15,8 +15,6 @@ for filename in sys.argv[1:]:
     psi = data[:,2]
     a = data[:,3]
 
-    print('foooo', type(r2), type(r**2))
-
     X = int(N)*(r2 - r**2)
 
     fig = plt.figure()
@@ -33,9 +31,8 @@ for filename in sys.argv[1:]:
     ax3.set_xlabel('a')
     ax3.set_ylabel('psi')
 
-
     ax.plot(a, r, 'ro')
-    ax2.plot(a, X, 'go')
+    ax2.semilogy(a, X, 'go')
     ax3.plot(a, psi, 'bo')
 
 plt.show()
