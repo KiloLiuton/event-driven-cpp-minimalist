@@ -7,6 +7,7 @@
 //#endif
 
 #include <iostream>
+#include <string.h>
 #include <fstream>
 #include <stdio.h>
 #include <iomanip>
@@ -17,6 +18,7 @@
 #include <random>
 #include <math.h>
 #include <pcg_random.hpp>
+#include "greeting.h"
 
 // include the desired topology file and compile before running
 //#include HEADER
@@ -43,6 +45,7 @@ struct rates {
 typedef struct {
     double r;
     double psi;
+    double omega = -1;
 } trial;
 typedef struct {
     double r;
@@ -405,7 +408,10 @@ trial run_trial(
     double R = 0;
     double PSI = 0;
     double time_elapsed = 0;
+    size_t last_pops[10] = {0,0,0,0,0,0,0,0,0,0};
+    float omega_threshold = N / 3.0;
     for (size_t i = 0; i < I; i++) {
+        // TODO: log OMEGA somehow... should be done somewhere around here...
         double dt = 1.0 / rates.sum;
         R += get_op() * dt;
         PSI += get_psi_op() * dt;
@@ -481,16 +487,41 @@ void print_batches_file_header(FILE* f, int TRIALS, int BURN, int ITERS) {
     fprintf(f, "<<r>>,<<r>^2>,<<psi>>,a\n");
 }
 
-void greeting() {
-    std::cout << "Initial populations: ";
-    std::cout << states.pop[0] << ' '
-              << states.pop[1] << ' '
-              << states.pop[2] << '\n';
-    std::cout << std::fixed << std::setprecision(4);
-    std::cout << std::setprecision(10) << "Initial order parameter: " << get_squared_op() << '\n';
+void welcome(int argc, char* argv[],
+        bool RUN_TRIAL, bool RUN_BATCH, bool RUN_OMEGA) {
+    std::cout << greeting;
+    std::cout << "Welcome to the event driven simulation!\n";
+    std::cout << "Parameters: ";
+    std::cout << "N=" << N << "    K=" << K << "    p=" << p << '\n';
+    std::cout << "Command line arguments: ";
+    for (int i = 1; i < argc; i++) {
+        std::cout << argv[i] << "    ";
+    }
+    std::cout << '\n';
+    std::cout << "Selected modes:\n";
+    std::cout << "RUN_TRIAL: " << (RUN_TRIAL ? "True":"False") << '\n';
+    std::cout << "RUN_BATCH: " << (RUN_BATCH ? "True":"False") << '\n';
+    std::cout << "RUN_OMEGA: " << (RUN_OMEGA ? "True":"False") << '\n';
+}
+
+bool is_arg(const char* arg, int argc, char* argv[]) {
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], arg) == 0) return true;
+    }
+    return false;
 }
 
 int main(int argc, char* argv[]) {
+    // PARSE COMMAND LINE
+    bool RUN_TRIAL = false;
+    bool RUN_BATCH = false;
+    bool RUN_OMEGA = false;
+    for (int i = 0; i < argc; i++) {
+        RUN_TRIAL = is_arg("trial", argc, argv);
+        RUN_BATCH = is_arg("batch", argc, argv);
+        RUN_OMEGA = is_arg("omega", argc, argv);
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // RUN AND SAVE A SINGLE TRIAL WITH COUPLING GIVEN BY THE MAKEFILE
     // (DEFAULTS TO 1.6)
@@ -501,33 +532,35 @@ int main(int argc, char* argv[]) {
     const size_t BURN = (3. / 5.) * N * std::log(N);
     const size_t SAVE_INTERVAL = 2;
 
+    welcome(argc, argv, RUN_TRIAL, RUN_BATCH, RUN_OMEGA);
     initialize_everything(COUPLING, seed, stream, true);
-    greeting();
 
-    // create log file name
-    char file_name[50];
-    sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v0.dat", N, K, p, COUPLING);
-    file_name[16] = file_name[23] = '_';
-    int counter = 1;
-    while (std::ifstream(file_name)) {
-        sprintf(
-                file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v%d.dat",
-                N, K, p, COUPLING, counter
+    if (RUN_TRIAL) {
+        // create log file name
+        char file_name[50];
+        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v0.dat", N, K, p, COUPLING);
+        file_name[16] = file_name[23] = '_';
+        int counter = 1;
+        while (std::ifstream(file_name)) {
+            sprintf(
+                    file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v%d.dat",
+                    N, K, p, COUPLING, counter
+                );
+            file_name[16] = '_';
+            file_name[23] = '_';
+            counter++;
+        }
+
+        // log one trial to file
+        FILE* singleTrialFile;
+        singleTrialFile = std::fopen(file_name, "w");
+        print_file_header(singleTrialFile, COUPLING, BURN, ITERS);
+        log_trial_to_file(
+                ITERS, BURN, seed, stream,
+                singleTrialFile, SAVE_INTERVAL
             );
-        file_name[16] = '_';
-        file_name[23] = '_';
-        counter++;
+        std::fclose(singleTrialFile);
     }
-
-    // log one trial to file
-    FILE* singleTrialFile;
-    singleTrialFile = std::fopen(file_name, "w");
-    print_file_header(singleTrialFile, COUPLING, BURN, ITERS);
-    log_trial_to_file(
-            ITERS, BURN, seed, stream,
-            singleTrialFile, SAVE_INTERVAL
-        );
-    std::fclose(singleTrialFile);
 
     //////////////////////////////////////////////////////////////////////////
     // RUN A BATCH OF TRIALS FOR EACH DIFFERENT COUPLING STRENGTH
@@ -549,7 +582,7 @@ int main(int argc, char* argv[]) {
     sprintf(batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v0.dat",
             N, K, p, A[0], A[lenA-1]);
     batches_file_name[24] = batches_file_name[31] = '_';
-    counter = 1;
+    int counter = 1;
     while (std::ifstream(batches_file_name)) {
         sprintf(
                 batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v%d.dat",

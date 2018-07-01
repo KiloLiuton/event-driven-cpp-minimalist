@@ -43,4 +43,5 @@ for filename in sys.argv[1:]:
     ax.plot(t, n2, 'g-')
     ax2.plot(t, r, 'b-')
 
+#plt.savefig('foooo.png')
 plt.show()
