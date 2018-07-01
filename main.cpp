@@ -497,8 +497,8 @@ int main(int argc, char* argv[]) {
     //////////////////////////////////////////////////////////////////////////
     const unsigned int seed = 20u;
     const unsigned int stream = 2u;
-    const size_t ITERS = 10*N*std::log(N);
-    const size_t BURN = N*std::log(N);
+    const size_t ITERS = 5 * N * std::log(N);
+    const size_t BURN = (3. / 5.) * N * std::log(N);
     const size_t SAVE_INTERVAL = 2;
 
     initialize_everything(COUPLING, seed, stream, true);
