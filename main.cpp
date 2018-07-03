@@ -111,7 +111,13 @@ trial run_omega_trial(
         size_t stream
     );
 /* execute a batch of trials and record the average order parameter */
-batch run_batch(size_t TRIALS, size_t ITERS, size_t BURN, double a);
+batch run_batch(
+        size_t TRIALS,
+        size_t ITERS,
+        size_t BURN,
+        double a,
+        bool RUN_OMEGA
+    );
 
 // PRINTER FUNCTIONS
 /* print the state for each site to stdout */
@@ -380,7 +386,8 @@ void log_trial_to_file(
             log_counter = 0;
         }
         if (progress_counter == PROGRESS_INTERVAL) {
-            std::cout << std::setprecision(1) << "[" << (float) i/(I+B)*100 << "%]\n";
+            std::cout << std::fixed << std::setprecision(1)
+                      << "[" << (float) i/(I+B)*100 << "%]\n";
             progress_counter = 0;
         }
         log_counter++;
@@ -434,7 +441,7 @@ trial run_omega_trial(
     initialize_rates();
     for (size_t i = 0; i < B; i++) transition_site();
 
-    const int cooldown = 50;
+    const int cooldown = 100;
     float t_start = 0;
     float t_end = 0;
     bool started = false;
@@ -496,6 +503,7 @@ batch run_batch(size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
     double r = 0;
     double r2 = 0;
     double psi = 0;
+    double omega = 0;
     for (size_t i = 0; i < TRIALS; i++) {
         size_t seed = i;
         size_t stream = i;
@@ -508,6 +516,7 @@ batch run_batch(size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
         r += Trial.r;
         r2 += std::pow(Trial.r, 2.0);
         psi += Trial.psi;
+        omega += Trial.omega;
 
         if (progress_counter == PROGRESS_INTERVAL) {
             std::cout << std::setprecision(1) << std::fixed
@@ -520,6 +529,7 @@ batch run_batch(size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
     Batch.r = r / TRIALS;
     Batch.r2 = r2 / TRIALS;
     Batch.psi = psi / TRIALS;
+    Batch.omega = omega / TRIALS;
     return Batch;
 }
 
@@ -601,8 +611,8 @@ int main(int argc, char* argv[]) {
         const unsigned int seed = 20u;
         const unsigned int stream = 2u;
         const size_t ITERS = 5 * N * std::log(N);
-        const size_t BURN = (3. / 5.) * N * std::log(N);
-        const size_t SAVE_INTERVAL = 2;
+        const size_t BURN = 5 * N * std::log(N);
+        const size_t SAVE_INTERVAL = 1;
         initialize_everything(COUPLING, seed, stream, true);
 
         // create log file name
@@ -637,7 +647,7 @@ int main(int argc, char* argv[]) {
 
     if (RUN_BATCH) {
         const size_t ITERS = 5 * N * std::log(N);
-        const size_t BURN = (3. / 5.) * N * std::log(N);
+        const size_t BURN = 5 * N * std::log(N);
         double A[] = {1.        , 1.0862069 , 1.17241379, 1.25862069, 1.34482759,
                       1.4       , 1.43103448, 1.45      , 1.5       , 1.51724138,
                       1.55      , 1.6       , 1.60344828, 1.68965517, 1.77586207,
@@ -653,15 +663,16 @@ int main(int argc, char* argv[]) {
         char batches_file_name[70];
         sprintf(batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v0.dat",
                 N, K, p, A[0], A[lenA-1]);
-        batches_file_name[24] = batches_file_name[31] = '_';
+        batches_file_name[24] = '_';
+        batches_file_name[31]  ='_';
+        batches_file_name[37] = '_';
         int counter = 1;
         while (std::ifstream(batches_file_name)) {
-            sprintf(
-                    batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v%d.dat",
-                    N, K, p, A[0], A[lenA-1], counter
-                );
+            sprintf(batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v%d.dat",
+                    N, K, p, A[0], A[lenA-1], counter);
             batches_file_name[24] = '_';
             batches_file_name[31] = '_';
+            batches_file_name[37] = '_';
             counter++;
         }
         FILE* batchesFile;
@@ -671,7 +682,10 @@ int main(int argc, char* argv[]) {
         // run batches
         for (size_t i = 0; i < lenA; i++) {
             double a = A[i];
-            std::cout << "\nBatch started: TRIALS=" << TRIALS
+            std::cout << "\nBatch started: N=" << N
+                      << "  K=" << K
+                      << "  p=" << p
+                      << "  TRIALS=" << TRIALS
                       << "  ITERS=" << ITERS
                       << "  BURN=" << BURN
                       << "  a=" << a

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
 import numpy as np
+import colors
 import sys
 
 for filename in sys.argv[1:]:
@@ -13,7 +14,9 @@ for filename in sys.argv[1:]:
     r = data[:,0]
     r2 = data[:,1]
     psi = data[:,2]
-    a = data[:,3]
+    omega = 2 * np.pi * data[:,3]
+    omega[:8] = 0
+    a = data[:,4]
 
     X = int(N)*(r2 - r**2)
 
@@ -31,8 +34,10 @@ for filename in sys.argv[1:]:
     ax3.set_xlabel('a')
     ax3.set_ylabel('psi')
 
-    ax.plot(a, r, 'ro')
-    ax2.semilogy(a, X, 'go')
-    ax3.plot(a, psi, 'bo')
+    clist = colors._get_colors(4)
+    ax.plot(a, r, 'o', color=clist[0])
+    ax.plot(a, omega, 'o', color=clist[1])
+    ax2.semilogy(a, X, 'o', color=clist[2])
+    ax3.plot(a, psi, 'o', color=clist[3])
 
 plt.show()
