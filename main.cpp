@@ -441,7 +441,7 @@ trial run_omega_trial(
     initialize_rates();
     for (size_t i = 0; i < B; i++) transition_site();
 
-    const int cooldown = 100;
+    const int cooldown = N * 0.65;
     float t_start = 0;
     float t_end = 0;
     bool started = false;
