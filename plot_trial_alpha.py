@@ -16,19 +16,21 @@ def stacked_plot(ax, X, Y, log=False, styling = ['o']):
             y = np.log10(Y[i])
         else:
             y = Y[i]
-        ax.plot(X[i], y, color=colors[i], *styling)
+        ax.plot(X[i], y, color=colors[i], **styling)
 
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print('Usage: %s ALPHA FOLDER'.format(sys.argv[0]))
+        print('Usage: {} ALPHA FOLDER'.format(sys.argv[0]))
         print('where ALPHA = K/N is the percentage you wish to plot.')
         print('where FOLDER is the path to the trial data.')
         sys.exit()
     ALPHA = int(100 * float(sys.argv[1]))
     FOLDER = sys.argv[2]
+    if not FOLDER.endswith('/'): FOLDER = FOLDER + '/'
 
-    all_trials = sorted(os.listdir(FOLDER))
+    all_trials = sorted([f for f in os.listdir(FOLDER) if not f.startswith('batch')])
+    print('BARRRR', all_trials)
     trial_files = []
     for t in all_trials:
         N = int(t[t.find('N-') + 2: t.find('K-')])
@@ -44,7 +46,7 @@ if __name__ == '__main__':
     all_a = []
     for t in trial_files:
         N = int(t[t.find('N-') + 2: t.find('K-')])
-        batch = np.loadtxt('batches/' + t, skiprows=2, delimiter=',')
+        batch = np.loadtxt(FOLDER + t, skiprows=2, delimiter=',')
         r = batch[:,0]
         r2 = batch[:,1]
         psi = batch[:,2]
