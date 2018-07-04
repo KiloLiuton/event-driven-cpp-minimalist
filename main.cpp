@@ -1,6 +1,3 @@
-#ifndef COUPLING
-#define COUPLING 2.0
-#endif
 #define SIN_PHI1 0.8660254037844387
 //#ifndef HEADER
 //#define HEADER "20-3-0_0-seed_42.h"
@@ -10,6 +7,7 @@
 #include <string.h>
 #include <fstream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <iomanip>
 #include <algorithm>
 #include <array>
@@ -85,7 +83,7 @@ uint16_t transitionIndex();
 /* performs a complete step of the event driven simulation */
 void transition_site();
 /* run a trial for ITERS time steps after burning BURN steps and save results
- * to log_file after every SAVE_INTERVAL steps. Logged columns are:
+ * to log_file. Logged columns are:
  * r**2,N0,N1,time */
 void log_trial_to_file(
         size_t ITERS,
@@ -591,14 +589,21 @@ bool is_arg(const char* arg, int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
     // PARSE COMMAND LINE
+    double coupling = -1.0;
     bool RUN_TRIAL = false;
     bool RUN_BATCH = false;
     bool RUN_OMEGA = false;
     for (int i = 0; i < argc; i++) {
         RUN_TRIAL = is_arg("trial", argc, argv);
+        if (RUN_TRIAL && (coupling < 0)) {
+            coupling = atof(argv[i + 2]);
+            std::cout << "BARFOOO  " << argv[i+2] << '\n';
+        }
         RUN_BATCH = is_arg("batch", argc, argv);
         RUN_OMEGA = is_arg("omega", argc, argv);
     }
+    if (coupling < 0) coupling = 1.6;
+    std::cout << "FOOO " << coupling << '\n';
 
     //////////////////////////////////////////////////////////////////////////
     // RUN AND SAVE A SINGLE TRIAL WITH COUPLING GIVEN BY THE MAKEFILE
@@ -613,17 +618,17 @@ int main(int argc, char* argv[]) {
         const size_t ITERS = 5 * N * std::log(N);
         const size_t BURN = 5 * N * std::log(N);
         const size_t SAVE_INTERVAL = 1;
-        initialize_everything(COUPLING, seed, stream, true);
+        initialize_everything(coupling, seed, stream, true);
 
         // create log file name
         char file_name[50];
-        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v0.dat", N, K, p, COUPLING);
+        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v0.dat", N, K, p, coupling);
         file_name[16] = file_name[23] = '_';
         int counter = 1;
         while (std::ifstream(file_name)) {
             sprintf(
                     file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v%d.dat",
-                    N, K, p, COUPLING, counter
+                    N, K, p, coupling, counter
                 );
             file_name[16] = '_';
             file_name[23] = '_';
@@ -633,7 +638,7 @@ int main(int argc, char* argv[]) {
         // log one trial to file
         FILE* singleTrialFile;
         singleTrialFile = std::fopen(file_name, "w");
-        print_file_header(singleTrialFile, COUPLING, BURN, ITERS);
+        print_file_header(singleTrialFile, coupling, BURN, ITERS);
         log_trial_to_file(
                 ITERS, BURN, seed, stream,
                 singleTrialFile, SAVE_INTERVAL
