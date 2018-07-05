@@ -110,6 +110,7 @@ trial run_omega_trial(
     );
 /* execute a batch of trials and record the average order parameter */
 batch run_batch(
+        size_t id,
         size_t TRIALS,
         size_t ITERS,
         size_t BURN,
@@ -216,13 +217,11 @@ double get_rate_from_table(uint16_t i) {
     const uint16_t k = NUMBER_OF_NEIGHBORS[i];
     const int16_t d = deltas[i];
     uint32_t idx = (k - K_MIN) * (k + K_MIN) + k + d;
-    // TODO remove
-    if (idx < 0 || idx >= NUM_POSSIBLE_TRANSITIONS) std::cout << "get_rate_from_table ALERT!!! BUG ALERT!!!\n";
     return ratesTable[idx];
 }
 
 void initialize_rates() {
-    rates.sum = 0.0;
+    rates.sum = .0;
     for (uint16_t i = 0; i < N; i++) {
         const double r = get_rate_from_table(i);
         rates.array[i] = r;
@@ -310,25 +309,10 @@ void update_site(uint16_t i) {
             newDelta++;
         }
     }
-    // TODO remove
-    std::cout << "atualizando sitio " << i << "\n";
     deltas[i] = newDelta;
-    double oldrate = rates.array[i];
-    // TODO remove
-    if (std::isnan(oldrate)) std::cout << "oldrate foodeu\n";
-    rates.sum -= oldrate;
-    double newrate = ratesTable[(ki - K_MIN) * (ki + K_MAX) + ki + newDelta];
-
-    const uint16_t k = NUMBER_OF_NEIGHBORS[i];
-    const int16_t d = deltas[i];
-    uint32_t idx = (k - K_MIN) * (k + K_MIN) + k + d;
-
-    // TODO remove
-    if (std::isnan(newrate)) std::cout << "newrate foodeu\n";
-    rates.array[i] = newrate;
+    rates.sum -= rates.array[i];
+    rates.array[i] = ratesTable[(ki - K_MIN) * (ki + K_MAX) + ki + newDelta];
     rates.sum += rates.array[i];
-    // TODO remove
-    if (std::isnan(rates.sum)) std::cout << "Deu pau no sitio " << i << "\n";
 }
 
 void update_neighbors(uint16_t i) {
@@ -336,8 +320,6 @@ void update_neighbors(uint16_t i) {
     uint8_t newState = states.array[i];
     for (uint32_t j = INDEXES[i]; j<INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
         uint16_t nbIndex = NEIGHBOR_LIST[j];
-        // TODO remove
-        if (nbIndex < 0 || nbIndex >= N) std::cout << "ALERT!!! BUG ALERT!!!\n";
         uint16_t nbState = states.array[nbIndex];
         if (nbState == newState) {
             deltas[nbIndex] -= 1;
@@ -357,10 +339,7 @@ void update_neighbors(uint16_t i) {
 uint16_t transitionIndex() {
     double partialRate = 0;
     double g = 0;
-    double rn = UNIFORM(RNG);
-    double randomRate = rn * rates.sum;
-    // TODO remove
-    std::cout << "FOO rn=" << rn << " randomRate=" << randomRate << " sum=" << rates.sum << '\n';
+    double randomRate = UNIFORM(RNG) * rates.sum;
     for (uint16_t id = 0; id < N; ++id) {
         g = rates.array[id];
         partialRate += g;
@@ -370,7 +349,7 @@ uint16_t transitionIndex() {
     for (uint16_t i = 0; i < N; i++) {
         rates.sum += rates.array[i];
     }
-    std::cout << "Rates refreshed due to Overflow.\n";
+    std::cout << "Rates refreshed due to Overflow.";
     return N - 1;
 }
 
@@ -515,9 +494,9 @@ trial run_omega_trial(
     return Trial;
 }
 
-batch run_batch(size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
+batch run_batch(size_t id, size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
         double a, bool RUN_OMEGA) {
-    initialize_everything(a, 42u, 52u); // seeds for the initial state
+    initialize_everything(a, id, id); // seeds for the initial state
     size_t PROGRESS_INTERVAL = TRIALS / 5;
     size_t progress_counter = 1;
     double r = 0;
@@ -591,7 +570,6 @@ void welcome(int argc, char* argv[],
     std::cout << "Welcome to the event driven simulation!\n";
     std::cout << "Parameters: ";
     std::cout << "N=" << N << "    K=" << K << "    p=" << p << '\n';
-    std::cout << "K_MIN=" << K_MIN << "    K_MAX=" << K_MAX << '\n';
     std::cout << "Command line arguments: ";
     for (int i = 1; i < argc; i++) {
         std::cout << argv[i] << "    ";
@@ -611,15 +589,123 @@ bool is_arg(const char* arg, int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
-    welcome(argc, argv, false, false, false);
-    const unsigned int seed = 20u;
-    const unsigned int stream = 2u;
-    initialize_everything(2.0, seed, stream, true);
-    for (size_t i = 0; i < NUM_POSSIBLE_TRANSITIONS; i++) {
-        std::cout << "rt[" << i << "] = " << ratesTable[i] << '\n';
+    // PARSE COMMAND LINE
+    double coupling = -1.0;
+    bool RUN_TRIAL = false;
+    bool RUN_BATCH = false;
+    bool RUN_OMEGA = false;
+    for (int i = 0; i < argc; i++) {
+        RUN_TRIAL = is_arg("trial", argc, argv);
+        if (RUN_TRIAL && (coupling < 0)) {
+            coupling = atof(argv[i + 2]);
+        }
+        RUN_BATCH = is_arg("batch", argc, argv);
+        RUN_OMEGA = is_arg("omega", argc, argv);
     }
-    for (int i = 0; i < 10; i++) {
-        transition_site();
+    if (coupling < 0) coupling = 1.6;
+
+    //////////////////////////////////////////////////////////////////////////
+    // RUN AND SAVE A SINGLE TRIAL WITH COUPLING GIVEN BY THE MAKEFILE
+    // (DEFAULTS TO 1.6)
+    //////////////////////////////////////////////////////////////////////////
+
+    welcome(argc, argv, RUN_TRIAL, RUN_BATCH, RUN_OMEGA);
+
+    if (RUN_TRIAL) {
+        const unsigned int seed = 20u;
+        const unsigned int stream = 2u;
+        const size_t ITERS = 5 * N * std::log(N);
+        const size_t BURN = 5 * N * std::log(N);
+        const size_t SAVE_INTERVAL = 1;
+        initialize_everything(coupling, seed, stream, true);
+
+        // create log file name
+        char file_name[50];
+        sprintf(file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
+        file_name[16] = file_name[23] = '_';
+        int counter = 1;
+        while (std::ifstream(file_name)) {
+            sprintf(
+                    file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
+                    N, K, p, coupling, counter
+                );
+            file_name[16] = '_';
+            file_name[23] = '_';
+            counter++;
+        }
+
+        // log one trial to file
+        FILE* singleTrialFile;
+        singleTrialFile = std::fopen(file_name, "w");
+        print_file_header(singleTrialFile, coupling, BURN, ITERS);
+        log_trial_to_file(
+                ITERS, BURN, seed, stream,
+                singleTrialFile, SAVE_INTERVAL
+            );
+        std::fclose(singleTrialFile);
+    }
+
+    //////////////////////////////////////////////////////////////////////////
+    // RUN A BATCH OF TRIALS FOR EACH DIFFERENT COUPLING STRENGTH
+    //////////////////////////////////////////////////////////////////////////
+
+    if (RUN_BATCH) {
+        const size_t ITERS = 5 * N * std::log(N);
+        const size_t BURN = 5 * N * std::log(N);
+        double A[] = {
+            1.0, 1.125, 1.25, 1.375, 1.5, 1.6144285714285713,
+            1.7288571428571429, 1.8432857142857142, 1.9577142857142857,
+            2.072142857142857, 2.1865714285714284, 2.301, 2.4154285714285715,
+            2.529857142857143, 2.644285714285714, 2.7587142857142855,
+            2.8731428571428568, 2.9875714285714285, 3.102, 3.2015, 3.301,
+            3.4005, 3.5
+        };
+        size_t lenA = 23;
+        const size_t TRIALS = 800;
+
+        // create filename and open file
+        char batches_file_name[90];
+        sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
+                N, K, p, A[0], A[lenA-1]);
+        batches_file_name[24] = '_';
+        batches_file_name[31]  ='_';
+        batches_file_name[37] = '_';
+        int counter = 1;
+        while (std::ifstream(batches_file_name)) {
+            sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
+                    N, K, p, A[0], A[lenA-1], counter);
+            batches_file_name[24] = '_';
+            batches_file_name[31] = '_';
+            batches_file_name[37] = '_';
+            counter++;
+        }
+        FILE* batchesFile;
+        batchesFile = std::fopen(batches_file_name, "w");
+        print_batches_file_header(batchesFile, TRIALS, BURN, ITERS);
+
+        // run batches
+        for (size_t i = 0; i < lenA; i++) {
+            double a = A[i];
+            std::cout << "\nBatch started: N=" << N
+                      << "  K=" << K
+                      << "  p=" << p
+                      << "  TRIALS=" << TRIALS
+                      << "  ITERS=" << ITERS
+                      << "  BURN=" << BURN
+                      << "  a=" << a
+                      << " [" << i + 1
+                      << "/" << lenA
+                      << "]\n";
+            batch Batch = run_batch(i, TRIALS, ITERS, N*std::log(N), a, RUN_OMEGA);
+            std::cout << std::setprecision(6)
+                      << "<<r>>: " << Batch.r
+                      << "    <<psi>>: " << Batch.psi << '\n';
+            std::fprintf(
+                    batchesFile, "%6.6f,%6.6f,%6.6f,%6.6f,%6.6f\n",
+                    Batch.r, Batch.r2, Batch.psi, Batch.omega, a
+                );
+        }
+        std::fclose(batchesFile);
     }
 
     return 0;

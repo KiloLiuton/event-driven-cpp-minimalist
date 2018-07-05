@@ -14,7 +14,7 @@ def writeHeader(fname, N, K, p, seed, INDEXES, NUMBER_OF_NEIGHBORS, NEIGHBOR_LIS
         f.write('#ifndef TOPOLOGY_H\n#define TOPOLOGY_H\n\n#include <iostream>\n\n')
         f.write('constexpr uint16_t N = %d;\n' % N)
         f.write('constexpr uint16_t K = %d;\n' % K)
-        f.write('constexpr float p = %d;\n' % p)
+        f.write('constexpr float p = %6.6f;\n' % p)
         f.write('constexpr uint16_t K_MAX = %d;\n' % K_MAX)
         f.write('constexpr uint16_t K_MIN = %d;\n' % K_MIN)
         f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n' % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
