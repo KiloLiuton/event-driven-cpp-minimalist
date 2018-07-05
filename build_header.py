@@ -4,6 +4,7 @@ import networkx as nx
 import random
 import sys
 import os
+import re
 
 
 def writeHeader(fname, N, K, p, seed, INDEXES, NUMBER_OF_NEIGHBORS, NEIGHBOR_LIST):
@@ -34,7 +35,7 @@ def createHeader(N, K, p, s):
     random.seed(s)
     header_filename = ('%05d'%N + '-'
                      + '%04d'%K + '-'
-                     + '_'.join(str(p).split('.')) + '-seed_'
+                     + re.sub('\.', '_', '%6.6f'%p) + '-seed_'
                      + '%d'%s + '.h')
 
     if header_filename in os.listdir():

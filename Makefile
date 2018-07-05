@@ -16,7 +16,7 @@ K_ = $(shell printf %04d $(K))
 p_ = $(shell echo $(p) | sed 's/\./_/')
 s_ = $(shell printf %d $(s))
 h = "$(N_)-$(K_)-$(p_)-seed_$(s_).h"
-prog = "sim-$(N_)-$(K_)-$(p_)-$(a_)-graphseed_$(s_)"
+prog = "sim-$(N_)-$(K_)-$(p_)-graphseed_$(s_)"
 
 all: $(prog)
 

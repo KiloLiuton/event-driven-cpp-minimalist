@@ -439,7 +439,7 @@ trial run_omega_trial(
     initialize_rates();
     for (size_t i = 0; i < B; i++) transition_site();
 
-    const int cooldown = N * 0.65;
+    const int cooldown = N * 1.8;
     float t_start = 0;
     float t_end = 0;
     bool started = false;
@@ -597,13 +597,11 @@ int main(int argc, char* argv[]) {
         RUN_TRIAL = is_arg("trial", argc, argv);
         if (RUN_TRIAL && (coupling < 0)) {
             coupling = atof(argv[i + 2]);
-            std::cout << "BARFOOO  " << argv[i+2] << '\n';
         }
         RUN_BATCH = is_arg("batch", argc, argv);
         RUN_OMEGA = is_arg("omega", argc, argv);
     }
     if (coupling < 0) coupling = 1.6;
-    std::cout << "FOOO " << coupling << '\n';
 
     //////////////////////////////////////////////////////////////////////////
     // RUN AND SAVE A SINGLE TRIAL WITH COUPLING GIVEN BY THE MAKEFILE
@@ -622,12 +620,12 @@ int main(int argc, char* argv[]) {
 
         // create log file name
         char file_name[50];
-        sprintf(file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v0.dat", N, K, p, coupling);
+        sprintf(file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
         file_name[16] = file_name[23] = '_';
         int counter = 1;
         while (std::ifstream(file_name)) {
             sprintf(
-                    file_name, "N-%05dK-%04dp-%3.3fa-%3.3f_v%d.dat",
+                    file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
                     N, K, p, coupling, counter
                 );
             file_name[16] = '_';
@@ -653,27 +651,27 @@ int main(int argc, char* argv[]) {
     if (RUN_BATCH) {
         const size_t ITERS = 5 * N * std::log(N);
         const size_t BURN = 5 * N * std::log(N);
-        double A[] = {1.        , 1.0862069 , 1.17241379, 1.25862069, 1.34482759,
-                      1.4       , 1.43103448, 1.45      , 1.5       , 1.51724138,
-                      1.55      , 1.6       , 1.60344828, 1.68965517, 1.77586207,
-                      1.86206897, 1.94827586, 2.03448276, 2.12068966, 2.20689655,
-                      2.29310345, 2.37931034, 2.46551724, 2.55172414, 2.63793103,
-                      2.72413793, 2.81034483, 2.89655172, 2.98275862, 3.        ,
-                      3.051     , 3.06896552, 3.102     , 3.153     , 3.15517241,
-                      3.204     , 3.24137931, 3.32758621, 3.4137931 , 3.5       };
-        size_t lenA = 40;
+        double A[] = {
+            1.0, 1.125, 1.25, 1.375, 1.5, 1.6144285714285713,
+            1.7288571428571429, 1.8432857142857142, 1.9577142857142857,
+            2.072142857142857, 2.1865714285714284, 2.301, 2.4154285714285715,
+            2.529857142857143, 2.644285714285714, 2.7587142857142855,
+            2.8731428571428568, 2.9875714285714285, 3.102, 3.2015, 3.301,
+            3.4005, 3.5
+        };
+        size_t lenA = 23;
         const size_t TRIALS = 200;
 
         // create filename and open file
-        char batches_file_name[70];
-        sprintf(batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v0.dat",
+        char batches_file_name[90];
+        sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
                 N, K, p, A[0], A[lenA-1]);
         batches_file_name[24] = '_';
         batches_file_name[31]  ='_';
         batches_file_name[37] = '_';
         int counter = 1;
         while (std::ifstream(batches_file_name)) {
-            sprintf(batches_file_name, "batches-N-%05dK-%04dp-%3.3fa-%3.3f-%3.3f_v%d.dat",
+            sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
                     N, K, p, A[0], A[lenA-1], counter);
             batches_file_name[24] = '_';
             batches_file_name[31] = '_';
