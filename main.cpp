@@ -379,8 +379,9 @@ void log_trial_to_file(
 
         if (log_counter == SAVE_INTERVAL) {
             double r = get_squared_op();
+	    double psi = get_psi_op();
             std::fprintf(
-                    f, "%16.16f,%d,%d,%f,%f\n", r, states.pop[0], states.pop[1], time_elapsed, dt
+                    f, "%16.16f,%16.16f,%d,%d,%f,%f\n", r, psi, states.pop[0], states.pop[1], time_elapsed, dt
                 );
             log_counter = 0;
         }
@@ -556,12 +557,12 @@ void print_rates() {
 
 void print_file_header(FILE* f, double a, int BURN, int ITERS) {
     fprintf(f, "N=%d,k=%d,p=%.6f,a=%.6f,BURN=%d,ITERS=%d\n", N, K, p, a, BURN, ITERS);
-    fprintf(f, "r**2,N0,N1,time,dt\n");
+    fprintf(f, "r**2,psi,N0,N1,time,dt\n");
 }
 
 void print_batches_file_header(FILE* f, int TRIALS, int BURN, int ITERS) {
     fprintf(f, "N=%d, K=%d, p=%f, TRIALS=%d, BURN=%d, ITERS=%d\n", N, K, p, TRIALS, BURN, ITERS);
-    fprintf(f, "<<r>>,<<r>^2>,<<psi>>,a\n");
+    fprintf(f, "<<r>>,<<r>^2>,<<psi>>,<<omega>>,a\n");
 }
 
 void welcome(int argc, char* argv[],
@@ -591,6 +592,7 @@ bool is_arg(const char* arg, int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     // PARSE COMMAND LINE
     double coupling = -1.0;
+    size_t seed = 42u;
     bool RUN_TRIAL = false;
     bool RUN_BATCH = false;
     bool RUN_OMEGA = false;
@@ -598,6 +600,7 @@ int main(int argc, char* argv[]) {
         RUN_TRIAL = is_arg("trial", argc, argv);
         if (RUN_TRIAL && (coupling < 0)) {
             coupling = atof(argv[i + 2]);
+	    seed = atoi(argv[i + 3]);
         }
         RUN_BATCH = is_arg("batch", argc, argv);
         RUN_OMEGA = is_arg("omega", argc, argv);
@@ -612,17 +615,18 @@ int main(int argc, char* argv[]) {
     welcome(argc, argv, RUN_TRIAL, RUN_BATCH, RUN_OMEGA);
 
     if (RUN_TRIAL) {
-        const unsigned int seed = 20u;
         const unsigned int stream = 2u;
         const size_t ITERS = 5 * N * std::log(N);
         const size_t BURN = 5 * N * std::log(N);
         const size_t SAVE_INTERVAL = 1;
+	std::cout << "Beginning trial with:\n" << "a=" << coupling
+		  << "  seed=" << seed << "  stream=" << stream << '\n';
         initialize_everything(coupling, seed, stream, true);
 
         // create log file name
         char file_name[50];
         sprintf(file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
-        file_name[16] = file_name[23] = '_';
+        file_name[16] = file_name[26] = '_';
         int counter = 1;
         while (std::ifstream(file_name)) {
             sprintf(
@@ -630,7 +634,7 @@ int main(int argc, char* argv[]) {
                     N, K, p, coupling, counter
                 );
             file_name[16] = '_';
-            file_name[23] = '_';
+            file_name[26] = '_';
             counter++;
         }
 
@@ -652,33 +656,31 @@ int main(int argc, char* argv[]) {
     if (RUN_BATCH) {
         const size_t ITERS = 5 * N * std::log(N);
         const size_t BURN = 5 * N * std::log(N);
-        double A[] = {1.5572145};
-	/*
-            1.0, 1.125, 1.25, 1.375, 1.5, 1.6144285714285713,
+        double A[] = {
+            1.0, 1.125, 1.25, 1.375, 1.5, 1.55721428, 1.6144285714285713,
             1.7288571428571429, 1.8432857142857142, 1.9577142857142857,
             2.072142857142857, 2.1865714285714284, 2.301, 2.4154285714285715,
             2.529857142857143, 2.644285714285714, 2.7587142857142855,
             2.8731428571428568, 2.9875714285714285, 3.102, 3.2015, 3.301,
             3.4005, 3.5
         };
-	*/
         size_t lenA = 1;
-        const size_t TRIALS = 800;
+        const size_t TRIALS = 400;
 
         // create filename and open file
         char batches_file_name[90];
         sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
                 N, K, p, A[0], A[lenA-1]);
         batches_file_name[24] = '_';
-        batches_file_name[31]  ='_';
-        batches_file_name[37] = '_';
+        batches_file_name[33]  ='_';
+        batches_file_name[40] = '_';
         int counter = 1;
         while (std::ifstream(batches_file_name)) {
             sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
                     N, K, p, A[0], A[lenA-1], counter);
             batches_file_name[24] = '_';
-            batches_file_name[31] = '_';
-            batches_file_name[37] = '_';
+            batches_file_name[33] = '_';
+            batches_file_name[40] = '_';
             counter++;
         }
         FILE* batchesFile;
