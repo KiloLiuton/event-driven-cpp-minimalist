@@ -11,12 +11,12 @@ for filename in sys.argv[1:]:
 
     data = np.loadtxt(filename, skiprows=2, delimiter=',')
 
-    r = data[:,0]
-    r2 = data[:,1]
-    psi = data[:,2]
-    omega = 2 * np.pi * data[:,3]
+    r = data[:, 0]
+    r2 = data[:, 1]
+    psi = data[:, 2]
+    omega = 2 * np.pi * data[:, 3]
     omega[:8] = 0
-    a = data[:,4]
+    a = data[:, 4]
 
     X = int(N)*(r2 - r**2)
 

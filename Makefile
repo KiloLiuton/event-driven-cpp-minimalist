@@ -9,7 +9,7 @@ LDFLAGS = -lm
 
 N ?= 20
 K ?= 3
-p ?= 0.0
+p ?= 0.000000
 s ?= 42
 N_ = $(shell printf %05d $(N))
 K_ = $(shell printf %04d $(K))
