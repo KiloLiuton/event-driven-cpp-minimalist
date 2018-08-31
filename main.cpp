@@ -3,22 +3,36 @@
 //#define HEADER "20-3-0_0-seed_42.h"
 //#endif
 
+#include <time.h>
 #include <iostream>
-#include <string.h>
+#include <string>
 #include <fstream>
-#include <stdio.h>
-#include <stdlib.h>
 #include <iomanip>
 #include <algorithm>
-#include <array>
-#include <numeric>
-#include <vector>
 #include <random>
 #include <math.h>
+#include <map>
 #include <pcg_random.hpp>
-// #include "greeting.h"
 
 // GLOBAL VARIABLES
+struct trial_params {
+    double coupling = 2.0;
+    size_t iters = 10*N*N;
+    size_t burn = 10*N*N;
+    size_t seed;
+    size_t stream;
+    std::string filename;
+};
+struct batch_params {
+    double coupling_start = 1.0;
+    double coupling_end = 3.6;
+    int coupling_n = 20;
+    int batch_id = 0;
+    size_t trials = 400;
+    size_t iters = 10*N*N;
+    size_t burn = 10*N*N;
+    std::string filename;
+};
 struct states {
     uint8_t array[N];
     uint16_t pop[3];
@@ -30,7 +44,8 @@ struct rates {
 typedef struct {
     double r;
     double psi;
-    double omega = 0;
+    double omega;
+    double duration;
 } trial;
 typedef struct {
     double r;
@@ -46,11 +61,12 @@ pcg32 RNG(42u, 52u);
 // INITIALIZER & GETTER FUNCTIONS
 /* generates a new random configuration and update all dependencies */
 void initialize_everything(
-    double coupling,
-    size_t seed,
-    size_t stream,
-    bool verbose = false
-);
+            double coupling,
+            size_t seed,
+            size_t stream, bool verbose
+        );
+/* reset the current lattice without changing the coupling strength */
+void reset_system(size_t seed, size_t stream);
 /* populate the states vector with a random configuration */
 void initialize_states();
 /* populates delta vector (states must be populated) */
@@ -59,7 +75,7 @@ void initialize_deltas();
 void initialize_rates_table(double coupling);
 /* get the transition rate for a site by accessing deltas vector and then
  * building the access index of the ratesTable. */
-double get_rate_from_table(int site);
+double get_rate_from_table(uint16_t site);
 /* populates the rates vector */
 void initialize_rates();
 /* calculates the square of the order parameter for the current state of
@@ -77,22 +93,16 @@ double get_psi_op();
 void update_site(int site_index);
 /* update rates and delta values for all NEIGHBORS of a site which has been
  * updated */
-void update_neighbors(uint16_t site_index);
+// TODO remove this function
+// void update_neighbors(uint16_t site_index);
 /* select an index that will undergo transition */
 uint16_t transitionIndex();
 /* performs a complete step of the event driven simulation */
-void transition_site();
+uint16_t transition_site();
 /* run a trial for ITERS time steps after burning BURN steps and save results
  * to log_file. Logged columns are:
  * r**2,N0,N1,time */
-void log_trial_to_file(
-        size_t ITERS,
-        size_t BURN,
-        size_t seed,
-        size_t stream,
-        FILE* log_file,
-        size_t SAVE_INTERVAL
-    );
+void log_trial_to_file(struct trial_params t_params, FILE* log_file);
 /* run a trial and return the average order parameters after BURN iters */
 trial run_trial(
         size_t ITERS,
@@ -102,21 +112,14 @@ trial run_trial(
     );
 /* run a trial and return the average order parameters and frequency omega
  * after BURN iters */
-trial run_omega_trial(
-        size_t ITERS,
-        size_t BURN,
-        size_t seed,
-        size_t stream
-    );
+trial run_omega_trial(struct trial_params t_params);
 /* execute a batch of trials and record the average order parameter */
 batch run_batch(
-        size_t id,
-        size_t TRIALS,
-        size_t ITERS,
-        size_t BURN,
-        double a,
-        bool RUN_OMEGA
-    );
+            double coupling,
+            size_t trials,
+            struct trial_params t_params,
+            FILE* log_file
+        );
 
 // PRINTER FUNCTIONS
 /* print the state for each site to stdout */
@@ -125,13 +128,19 @@ void print_states();
 void print_deltas();
 /* print transitions rates of every site */
 void print_rates();
+/* print the topology included in dynamic header */
+void print_geometry();
+/* get the default file name based on current existing files*/
+std::string getDefaultTrialFilename(double coupling);
+/* get the default file name based on current existing files*/
+std::string getDefaultBatchFilename(double coupling_start, double coupling_end);
 /* print a header to the trial output file (outputs results of a single run) */
 void print_file_header(FILE* file, double coupling, int BURN, int ITERS);
 /* print a header to the batches output file (many trials for many couplings) */
 void print_batches_file_header(FILE* file, int TRIALS, int BURN, int ITERS);
 
-void initialize_everything(double a, size_t s1, size_t s2, bool verbose) {
-    RNG.seed(s1, s2);
+void initialize_everything(double a, size_t seed, size_t stream, bool verbose=false) {
+    RNG.seed(seed, stream);
     if (verbose) {
         std::cout << "\nInitializing: "
                   << "N=" << N
@@ -155,6 +164,13 @@ void initialize_everything(double a, size_t s1, size_t s2, bool verbose) {
     if (verbose) {
         std::cout << "Rates initialized!\n\n";
     }
+}
+
+void reset_system(size_t seed, size_t stream) {
+    RNG.seed(seed, stream);
+    initialize_states();
+    initialize_deltas();
+    initialize_rates();
 }
 
 void initialize_states() {
@@ -187,9 +203,11 @@ void initialize_deltas() {
         const uint32_t ind = INDEXES[i];
         const int8_t state = states.array[i];
         const int8_t nextState = (state+1)%3;
+        // TODO const int8_t nextState = (state + 1 > 2) ? 0 : state + 1;
         int16_t d = 0;
         for (uint16_t j = 0; j < ki; j++) {
-            int8_t nbState = states.array[NEIGHBOR_LIST[ind+j]];
+            uint16_t nb_ind = NEIGHBOR_LIST[ind+j];
+            int8_t nbState = states.array[nb_ind];
             if (nbState == state) {
                 d--;
             } else if (nbState == nextState) {
@@ -296,101 +314,121 @@ double get_psi_op() {
 void update_site(uint16_t i) {
     uint8_t state = states.array[i];
     uint8_t nextState = (state + 1) % 3;
-    uint16_t ki = NUMBER_OF_NEIGHBORS[i];
+    // TODO uint8_t nextState = (state + 1 > 2) ? 0 : state + 1;
     states.array[i] = nextState;
     states.pop[state]--;
     states.pop[nextState]++;
-    int16_t newDelta = 0;
-    for (uint32_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
-        uint8_t nbState = states.array[NEIGHBOR_LIST[j]];
-        if (nbState == nextState) {
-            newDelta--;
-        } else if (nbState == (nextState + 1) % 3) {
-            newDelta++;
-        }
-    }
-    deltas[i] = newDelta;
-    rates.sum -= rates.array[i];
-    rates.array[i] = ratesTable[(ki - K_MIN) * (ki + K_MAX) + ki + newDelta];
-    rates.sum += rates.array[i];
-}
-
-void update_neighbors(uint16_t i) {
-    // here we assume that site 'i' has already undergone transition
-    uint8_t newState = states.array[i];
-    for (uint32_t j = INDEXES[i]; j<INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
+    int16_t siteDelta = 0;
+    double rateIncrease = 0;
+    double rateDecrease = 0;
+    for (uint32_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
         uint16_t nbIndex = NEIGHBOR_LIST[j];
-        uint16_t nbState = states.array[nbIndex];
-        if (nbState == newState) {
-            deltas[nbIndex] -= 1;
-        } else if (nbState == (newState + 1) % 3) {
+        uint8_t nbState = states.array[nbIndex];
+        if (nbState == state) {
+            deltas[nbIndex] += 2;
+        } else if (nbState == nextState) {
+            siteDelta -= 1;
             deltas[nbIndex] -= 1;
         } else {
-            deltas[nbIndex] += 2;
+            siteDelta += 1;
+            deltas[nbIndex] -= 1;
         }
-        // be sure to update rates only after updating `deltas` because
-        // get_rate_from_table uses it to get the updated value for the rate
-        rates.sum -= rates.array[nbIndex];
-        rates.array[nbIndex] = get_rate_from_table(nbIndex);
-        rates.sum += rates.array[nbIndex];
+        double nbRate = get_rate_from_table(nbIndex);
+        rateIncrease += nbRate;
+        rateDecrease -= rates.array[nbIndex];
+        rates.array[nbIndex] = nbRate;
     }
+    deltas[i] = siteDelta;
+    double siteRate = get_rate_from_table(i);
+    rateIncrease += siteRate;
+    rateDecrease -= rates.array[i];
+    rates.array[i] = siteRate;
+    rates.sum += rateIncrease + rateDecrease;
 }
+
+// TODO remove this function
+// void update_neighbors(uint16_t i) {
+//     // here we assume that site 'i' has already undergone transition
+//     uint8_t nextState = states.array[i];
+//     for (uint32_t j = INDEXES[i]; j < INDEXES[i] + NUMBER_OF_NEIGHBORS[i]; j++) {
+//         uint16_t nbIndex = NEIGHBOR_LIST[j];
+//         uint16_t nbState = states.array[nbIndex];
+//         if (nbState == nextState) {
+//             deltas[nbIndex] -= 1;
+//         } else if (nbState == (nextState + 1) % 3) {
+//             deltas[nbIndex] -= 1;
+//         } else {
+//             deltas[nbIndex] += 2;
+//         }
+//         // be sure to update rates only after updating `deltas` because
+//         // get_rate_from_table uses it to get the updated value for the rate
+//         rates.sum -= rates.array[nbIndex];
+//         rates.array[nbIndex] = get_rate_from_table(nbIndex);
+//         rates.sum += rates.array[nbIndex];
+//     }
+// }
 
 uint16_t transitionIndex() {
     double partialRate = 0;
     double g = 0;
-    double randomRate = UNIFORM(RNG) * rates.sum;
+    double rn = UNIFORM(RNG);
+    double randomRate = rn * rates.sum;
     for (uint16_t id = 0; id < N; ++id) {
         g = rates.array[id];
         partialRate += g;
-        if (partialRate > randomRate) return id;
+        if (partialRate > randomRate) {
+            return id;
+        }
     }
-    rates.sum = 0;
+    double actualRate =  0;
     for (uint16_t i = 0; i < N; i++) {
-        rates.sum += rates.array[i];
+        actualRate += rates.array[i];
     }
-    std::cout << "Rates refreshed due to Overflow.";
+    std::cout << "Rates refreshed due to Overflow.\n";
+    std::cout << "rates.sum: " << rates.sum << " randomRate :" << randomRate << '\n';
+    std::cout << "actualRate: " << actualRate << " rn: " << rn << '\n';
+    print_rates();
+
     return N - 1;
 }
 
-void transition_site() {
+uint16_t transition_site() {
     uint16_t i = transitionIndex();
     update_site(i);
-    update_neighbors(i);
+    return i;
 }
 
-void log_trial_to_file(
-            size_t I, size_t B,
-            size_t seed, size_t stream,
-            FILE* f, size_t SAVE_INTERVAL
-        ) {
+void log_trial_to_file(struct trial_params t_params, FILE* log_file) {
     std::cout << "Logging trial to file with:"
-              << "  BURN=" << B
-              << "  ITERS=" << I << '\n';
+              << "  ITERS="    << t_params.iters
+              << "  BURN="     << t_params.iters
+              << "  coupling=" << t_params.coupling << "\n";
 
-    size_t PROGRESS_INTERVAL = (I+B)/20;
-    size_t log_counter = 1;
+    reset_system(t_params.seed, t_params.stream);
+
+    size_t total_iters = t_params.iters + t_params.burn;
+    size_t PROGRESS_INTERVAL = total_iters/20;
     size_t progress_counter = 1;
     double time_elapsed = 0;
-    for (size_t i = 0; i < (I + B); ++i) {
+    for (size_t i = 0; i < total_iters; ++i) {
         double dt = 1.0 / rates.sum;
         time_elapsed += dt;
         transition_site();
 
-        if (log_counter == SAVE_INTERVAL) {
-            double r = get_squared_op();
+        double r = get_squared_op();
 	    double psi = get_psi_op();
-            std::fprintf(
-                    f, "%16.16f,%16.16f,%d,%d,%f,%f\n", r, psi, states.pop[0], states.pop[1], time_elapsed, dt
-                );
-            log_counter = 0;
-        }
+        std::fprintf(
+                log_file,
+                "%16.16f,%16.16f,%d,%d,%f,%f\n",
+                r, psi, states.pop[0], states.pop[1], time_elapsed, dt
+            );
         if (progress_counter == PROGRESS_INTERVAL) {
             std::cout << std::fixed << std::setprecision(1)
-                      << "[" << (float) i/(I+B)*100 << "%]\n";
+                      << "["
+                      << (float) i/total_iters*100
+                      << "%]\n";
             progress_counter = 0;
         }
-        log_counter++;
         progress_counter++;
     }
 }
@@ -431,17 +469,11 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
     }
 }
 
-trial run_omega_trial(
-            size_t I, size_t B,
-            size_t seed, size_t stream
-        ) {
-    RNG.seed(seed, stream);
-    initialize_states();
-    initialize_deltas();
-    initialize_rates();
-    for (size_t i = 0; i < B; i++) transition_site();
+trial run_omega_trial(struct trial_params t_params) {
+    for (size_t i = 0; i < t_params.burn; i++) {
+        transition_site();
+    }
 
-    const int cooldown = N * 1.8;
     float t_start = 0;
     float t_end = 0;
     bool started = false;
@@ -449,12 +481,13 @@ trial run_omega_trial(
     int crossings = 0;
     int counter = 0;
     size_t nprev = states.pop[0];
+    const int cooldown = N * 1.8;
     const float thold = N / 3.0;
 
     double R = 0;
     double PSI = 0;
     double time_elapsed = 0;
-    for (size_t i = 0; i < I; i++) {
+    for (size_t i = 0; i < t_params.iters; i++) {
         transition_site();
         double dt = 1.0 / rates.sum;
         R += get_op() * dt;
@@ -491,28 +524,26 @@ trial run_omega_trial(
     Trial.psi = PSI / time_elapsed;
     if (crossings > 1) {
         Trial.omega = (crossings - 1) / 2.0 / (t_end - t_start);
+    } else {
+        Trial.omega = 0;
     }
+    Trial.duration = time_elapsed;
+
     return Trial;
 }
 
-batch run_batch(size_t id, size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
-        double a, bool RUN_OMEGA) {
-    initialize_everything(a, id, id); // seeds for the initial state
-    size_t PROGRESS_INTERVAL = TRIALS / 5;
+batch run_batch(double coupling, size_t trials, struct trial_params t_params, FILE* log_file) {
+    initialize_everything(coupling, t_params.seed, 23u, false);
+    size_t PROGRESS_INTERVAL = trials / 10;
     size_t progress_counter = 1;
     double r = 0;
     double r2 = 0;
     double psi = 0;
     double omega = 0;
-    for (size_t i = 0; i < TRIALS; i++) {
-        size_t seed = i;
-        size_t stream = i;
-        trial Trial;
-        if (RUN_OMEGA) {
-            Trial = run_omega_trial(TRIAL_I, TRIAL_B, seed, stream);
-        } else {
-            Trial = run_trial(TRIAL_I, TRIAL_B, seed, stream);
-        }
+    for (size_t i = 0; i < trials; i++) {
+        t_params.seed = i;
+        t_params.stream = 2*i;
+        trial Trial = run_omega_trial(t_params);
         r += Trial.r;
         r2 += std::pow(Trial.r, 2.0);
         psi += Trial.psi;
@@ -520,16 +551,16 @@ batch run_batch(size_t id, size_t TRIALS, size_t TRIAL_I, size_t TRIAL_B,
 
         if (progress_counter == PROGRESS_INTERVAL) {
             std::cout << std::setprecision(1) << std::fixed
-                      << "[" << (float) i / TRIALS * 100 << "%]\n";
+                      << "[" << (float) i / trials * 100 << "%]\n";
             progress_counter = 0;
         }
         progress_counter++;
     }
     batch Batch;
-    Batch.r = r / TRIALS;
-    Batch.r2 = r2 / TRIALS;
-    Batch.psi = psi / TRIALS;
-    Batch.omega = omega / TRIALS;
+    Batch.r = r / trials;
+    Batch.r2 = r2 / trials;
+    Batch.psi = psi / trials;
+    Batch.omega = omega / trials;
     return Batch;
 }
 
@@ -537,22 +568,86 @@ void print_states() {
     for (uint16_t i = 0; i < N; i++) {
         std::cout << unsigned(states.array[i]) << ' ';
     }
-    std::cout << '\n';
+    std::cout << "(" << states.pop[0] << ") "
+              << "(" << states.pop[1] << ") "
+              << "(" << states.pop[2] << ")\n";
 }
 
 void print_deltas() {
     for (uint16_t i = 0; i < N; i++) {
-        std::cout << deltas[i] << ' ';
+        if (deltas[i] >= 0) {
+            std::cout << '+' << deltas[i] << ' ';
+        } else {
+            std::cout << deltas[i] << ' ';
+        }
     }
-    std::cout << '\n';
+    int s = 0;
+    for (int i = 0; i < N; i++) {
+        s += deltas[i];
+    }
+    std::cout << " (sum=" << s << ")\n";
 }
 
 void print_rates() {
-    std::cout << std::setprecision(2);
+    std::cout << std::setprecision(2) << std::fixed;
     for (uint16_t i = 0; i < N; i++) {
         std::cout << rates.array[i] << ' ';
     }
     std::cout << '\n';
+}
+
+void print_geometry() {
+    std::cout << "INDEXES:\n";
+    for (int i = 0; i < N; i++) {
+        std::cout << INDEXES[i] << ' ';
+    }
+    std::cout << '\n';
+    std::cout << "NUMBER_OF_NEIGHBORS\n";
+    for (int i = 0; i < N; i++) {
+        std::cout << NUMBER_OF_NEIGHBORS[i] << ' ';
+    }
+    std::cout << '\n';
+    std::cout << "NEIGHBOR_LIST\n";
+    for (int i = 0; i < N*2*K; i++) {
+        std::cout << NEIGHBOR_LIST[i] << ' ';
+    }
+    std::cout << '\n';
+}
+
+std::string getDefaultTrialFilename(double coupling) {
+    char fname[50];
+    sprintf(fname, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
+    fname[16] = fname[26] = '_';
+    int counter = 1;
+    while (std::ifstream(fname)) {
+        sprintf(
+                fname, "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
+                N, K, p, coupling, counter
+            );
+        fname[16] = '_';
+        fname[26] = '_';
+        counter++;
+    }
+    return fname;
+}
+
+std::string getDefaultBatchFilename(double coupling_start, double coupling_end) {
+    char fname[90];
+    sprintf(fname, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
+            N, K, p, coupling_start, coupling_end);
+    fname[24] = '_';
+    fname[33]  ='_';
+    fname[40] = '_';
+    int counter = 1;
+    while (std::ifstream(fname)) {
+        sprintf(fname, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
+                N, K, p, coupling_start, coupling_end, counter);
+        fname[24] = '_';
+        fname[33] = '_';
+        fname[40] = '_';
+        counter++;
+    }
+    return fname;
 }
 
 void print_file_header(FILE* f, double a, int BURN, int ITERS) {
@@ -565,151 +660,188 @@ void print_batches_file_header(FILE* f, int TRIALS, int BURN, int ITERS) {
     fprintf(f, "<<r>>,<<r>^2>,<<psi>>,<<omega>>,a\n");
 }
 
-void welcome(int argc, char* argv[],
-        bool RUN_TRIAL, bool RUN_BATCH, bool RUN_OMEGA) {
-    // std::cout << greeting;
-    std::cout << "Welcome to the event driven simulation!\n";
-    std::cout << "Parameters: ";
-    std::cout << "N=" << N << "    K=" << K << "    p=" << p << '\n';
-    std::cout << "Command line arguments: ";
-    for (int i = 1; i < argc; i++) {
-        std::cout << argv[i] << "    ";
-    }
-    std::cout << '\n';
-    std::cout << "Selected modes:\n";
-    std::cout << "RUN_TRIAL: " << (RUN_TRIAL ? "True":"False") << '\n';
-    std::cout << "RUN_BATCH: " << (RUN_BATCH ? "True":"False") << '\n';
-    std::cout << "RUN_OMEGA: " << (RUN_OMEGA ? "True":"False") << '\n';
+bool cmdOptionExists(char** begin, char** end, const std::string& option)
+{
+    return std::find(begin, end, option) != end;
 }
 
-bool is_arg(const char* arg, int argc, char* argv[]) {
-    for (int i = 0; i < argc; i++) {
-        if (strcmp(argv[i], arg) == 0) return true;
+std::string getCmdOption(char** begin, char** end, const std::string& option) {
+    char** s = std::find(begin, end, option);
+    if (s != end && ++s != end) {
+        return *s;
     }
-    return false;
+    return std::string();
 }
 
-int main(int argc, char* argv[]) {
-    // PARSE COMMAND LINE
-    double coupling = -1.0;
-    size_t seed = 42u;
-    bool RUN_TRIAL = false;
-    bool RUN_BATCH = false;
-    bool RUN_OMEGA = false;
-    for (int i = 0; i < argc; i++) {
-        RUN_TRIAL = is_arg("trial", argc, argv);
-        if (RUN_TRIAL && (coupling < 0)) {
-            coupling = atof(argv[i + 2]);
-	    seed = atoi(argv[i + 3]);
-        }
-        RUN_BATCH = is_arg("batch", argc, argv);
-        RUN_OMEGA = is_arg("omega", argc, argv);
+std::string replaceAllInstances(
+            std::string s,
+            const std::string& expr,
+            const std::string& by
+        ) {
+    /*Replace all instances of `expr` in s by `by` and return
+     * the resulting string*/
+    size_t f = s.find(expr);
+    if (f == std::string::npos) {
+        return s;
     }
-    if (coupling < 0) coupling = 1.6;
+    while (f != std::string::npos) {
+        s = s.replace(f, expr.length(), by);
+        f = s.find(expr);
+    }
+    return s;
+}
 
-    //////////////////////////////////////////////////////////////////////////
-    // RUN AND SAVE A SINGLE TRIAL WITH COUPLING GIVEN BY THE MAKEFILE
-    // (DEFAULTS TO 1.6)
-    //////////////////////////////////////////////////////////////////////////
+int main(int argc, char** argv) {
+    std::string help_message = "Usage: ./sim[...] [options] [args]\n"
+        "-options (args)\n"
+        "-h           print this help message\n\n"
+        "-t           perform a trial with default or specified parameters\n"
+        "trial parameters (only available if -t is passed):\n"
+        "-tc (real)   [default 2.0] coupling strength for trial\n"
+        "-tr (uint)   [default 23u] trial seed\n"
+        "-ts (uint)   [default 42u] trial stream\n"
+        "-ti (int)    [default 10*N*N] number of iterations in trial\n"
+        "-tb (int)    [default 10*N*N] number of burn iterations in trial\n"
+        "-tf (string) trial file name\n\n"
+        "-b           if this flag is present, perform a batch simulation\n"
+        "-bs (real)   [default 1.0] initial coupling strength\n"
+        "-be (real)   [default 3.6] final coupling strength\n"
+        "-bn (real)   [default 20] number of points from initial to final coupling\n"
+        "-bt (int)    [default 400] number of trials per coupling value\n"
+        "-bi (int)    [default 10*N*N] number of iterations (after burn-in) per\n"
+        "             coupling\n"
+        "-bb (int)    [default 10*N*N] number of burn-in iterations per coupling\n"
+        "-bf (string) batch file name\n";
 
-    welcome(argc, argv, RUN_TRIAL, RUN_BATCH, RUN_OMEGA);
-
-    if (RUN_TRIAL) {
-        const unsigned int stream = 2u;
-        const size_t ITERS = 5 * N * std::log(N);
-        const size_t BURN = 5 * N * std::log(N);
-        const size_t SAVE_INTERVAL = 1;
-	std::cout << "Beginning trial with:\n" << "a=" << coupling
-		  << "  seed=" << seed << "  stream=" << stream << '\n';
-        initialize_everything(coupling, seed, stream, true);
-
-        // create log file name
-        char file_name[50];
-        sprintf(file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
-        file_name[16] = file_name[26] = '_';
-        int counter = 1;
-        while (std::ifstream(file_name)) {
-            sprintf(
-                    file_name, "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
-                    N, K, p, coupling, counter
-                );
-            file_name[16] = '_';
-            file_name[26] = '_';
-            counter++;
-        }
-
-        // log one trial to file
-        FILE* singleTrialFile;
-        singleTrialFile = std::fopen(file_name, "w");
-        print_file_header(singleTrialFile, coupling, BURN, ITERS);
-        log_trial_to_file(
-                ITERS, BURN, seed, stream,
-                singleTrialFile, SAVE_INTERVAL
-            );
-        std::fclose(singleTrialFile);
+    // Display help message
+    if (cmdOptionExists(argv, argv+argc, "-h")
+        || cmdOptionExists(argv, argv+argc, "--help")) {
+        std::cout << help_message;
+        return 0;
     }
 
-    //////////////////////////////////////////////////////////////////////////
-    // RUN A BATCH OF TRIALS FOR EACH DIFFERENT COUPLING STRENGTH
-    //////////////////////////////////////////////////////////////////////////
-
-    if (RUN_BATCH) {
-        const size_t ITERS = 5 * N * std::log(N);
-        const size_t BURN = 5 * N * std::log(N);
-        double A[] = {
-            1.0, 1.125, 1.25, 1.375, 1.5, 1.55721428, 1.6144285714285713,
-            1.7288571428571429, 1.8432857142857142, 1.9577142857142857,
-            2.072142857142857, 2.1865714285714284, 2.301, 2.4154285714285715,
-            2.529857142857143, 2.644285714285714, 2.7587142857142855,
-            2.8731428571428568, 2.9875714285714285, 3.102, 3.2015, 3.301,
-            3.4005, 3.5
-        };
-        size_t lenA = 1;
-        const size_t TRIALS = 400;
-
-        // create filename and open file
-        char batches_file_name[90];
-        sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
-                N, K, p, A[0], A[lenA-1]);
-        batches_file_name[24] = '_';
-        batches_file_name[33]  ='_';
-        batches_file_name[40] = '_';
-        int counter = 1;
-        while (std::ifstream(batches_file_name)) {
-            sprintf(batches_file_name, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
-                    N, K, p, A[0], A[lenA-1], counter);
-            batches_file_name[24] = '_';
-            batches_file_name[33] = '_';
-            batches_file_name[40] = '_';
-            counter++;
+    // Get trial parameters
+    struct trial_params t_params;
+    if (cmdOptionExists(argv, argv+argc, "-t")) {
+        try {
+            std::string opt;
+            if (cmdOptionExists(argv, argv+argc, "-tc")) {
+                opt = getCmdOption(argv, argv+argc, "-tc");
+                t_params.coupling = stof(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-tr")) {
+                opt = getCmdOption(argv, argv+argc, "-tr");
+                t_params.seed = stof(opt);
+            } else {
+                t_params.seed = 23u;
+            }
+            if (cmdOptionExists(argv, argv+argc, "-ts")) {
+                opt = getCmdOption(argv, argv+argc, "-ts");
+                t_params.stream = stof(opt);
+            } else {
+                t_params.stream = 42u;
+            }
+            if (cmdOptionExists(argv, argv+argc, "-ti")) {
+                opt = getCmdOption(argv, argv+argc, "-ti");
+                t_params.iters = stoi(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-tb")) {
+                opt = getCmdOption(argv, argv+argc, "-tb");
+                t_params.burn = stoi(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-tf")) {
+                opt = getCmdOption(argv, argv+argc, "-tf");
+                t_params.filename = opt;
+            } else {
+                t_params.filename = getDefaultTrialFilename(t_params.coupling);
+            }
+        } catch(...) {
+            std::cerr << "Trial parameters not understood!\n"
+                         "See -h for help.\n";
+            return 0;
         }
-        FILE* batchesFile;
-        batchesFile = std::fopen(batches_file_name, "w");
-        print_batches_file_header(batchesFile, TRIALS, BURN, ITERS);
+    }
 
-        // run batches
-        for (size_t i = 0; i < lenA; i++) {
-            double a = A[i];
-            std::cout << "\nBatch started: N=" << N
-                      << "  K=" << K
-                      << "  p=" << p
-                      << "  TRIALS=" << TRIALS
-                      << "  ITERS=" << ITERS
-                      << "  BURN=" << BURN
-                      << "  a=" << a
-                      << " [" << i + 1
-                      << "/" << lenA
-                      << "]\n";
-            batch Batch = run_batch(i, TRIALS, ITERS, N*std::log(N), a, RUN_OMEGA);
-            std::cout << std::setprecision(6)
-                      << "<<r>>: " << Batch.r
-                      << "    <<psi>>: " << Batch.psi << '\n';
-            std::fprintf(
-                    batchesFile, "%6.6f,%6.6f,%6.6f,%6.6f,%6.6f\n",
-                    Batch.r, Batch.r2, Batch.psi, Batch.omega, a
-                );
+    // Get batch parameters
+    struct batch_params b_params;
+    if (cmdOptionExists(argv, argv+argc, "-b")) {
+        try {
+            std::string opt;
+            if (cmdOptionExists(argv, argv+argc, "-bs")) {
+                opt = getCmdOption(argv, argv+argc, "-bs");
+                b_params.coupling_start = stof(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-be")) {
+                opt = getCmdOption(argv, argv+argc, "-be");
+                b_params.coupling_end = stof(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-bn")) {
+                opt = getCmdOption(argv, argv+argc, "-bn");
+                b_params.coupling_n = stoi(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-bt")) {
+                opt = getCmdOption(argv, argv+argc, "-bt");
+                b_params.trials = stoi(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-bi")) {
+                opt = getCmdOption(argv, argv+argc, "-bi");
+                b_params.iters = stoi(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-bb")) {
+                opt = getCmdOption(argv, argv+argc, "-bb");
+                b_params.burn = stoi(opt);
+            }
+            if (cmdOptionExists(argv, argv+argc, "-bf")) {
+                opt = getCmdOption(argv, argv+argc, "-bf");
+                b_params.filename = opt;
+            } else {
+                b_params.filename = getDefaultBatchFilename(b_params.coupling_start, b_params.coupling_end);
+            }
+        } catch(...) {
+            std::cerr << "Batch parameters not understood!\n"
+                         "See -h for help.\n";
+            return 0;
         }
-        std::fclose(batchesFile);
+    }
+
+    // variables for measuring code run-times
+    struct timespec start, finish;
+    double elapsed;
+
+    std::cout << "Welcome, to Jurassick Park!\n";
+    std::cout << "N=" << N << " K=" << K << " p=" << p << "\n\n";
+
+    // RUN A TRIAL AND LOG IT TO A FILE
+    if (cmdOptionExists(argv, argv+argc, "-t")) {
+        std::cout << "\nTrial params:\n";
+        std::cout << "coupling: " << t_params.coupling << '\n';
+        std::cout << "iters:    " << t_params.iters << '\n';
+        std::cout << "burn:     " << t_params.burn << '\n';
+        std::cout << "filename: " << t_params.filename << '\n';
+
+        initialize_everything(t_params.coupling, t_params.seed, t_params.stream);
+        FILE* trial_log_file = std::fopen(t_params.filename.c_str(), "w");
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        log_trial_to_file(t_params, trial_log_file);
+        clock_gettime(CLOCK_MONOTONIC, &finish);
+        std::fclose(trial_log_file);
+
+        // report elapsed time
+        elapsed = (finish.tv_sec - start.tv_sec);
+        elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+        std::cout << std::fixed << std::setprecision(6) << "Elapsed: " << elapsed << "\n";
+    }
+
+    // RUN A BATCH OF TRIALS FOR EACH COUPLING STRENGTH
+    if (cmdOptionExists(argv, argv+argc, "-b")) {
+        std::cout << "\nBatch params:\n";
+        std::cout << "coupling start: " << b_params.coupling_start << '\n';
+        std::cout << "coupling end:   " << b_params.coupling_end << '\n';
+        std::cout << "coupling n:     " << b_params.coupling_n << '\n';
+        std::cout << "trials:         " << b_params.trials << '\n';
+        std::cout << "iters:          " << b_params.iters << '\n';
+        std::cout << "burn:           " << b_params.burn << '\n';
+        std::cout << "filename:       " << b_params.filename << '\n';
     }
 
     return 0;

@@ -6,7 +6,7 @@ import sys
 import os
 
 
-def stacked_plot(ax, X, Y, log=False, styling = ['o']):
+def stacked_plot(ax, X, Y, log=False, styling=['o']):
     X = np.array(X)
     Y = np.array(Y)
     n_colors = X.shape[0]
@@ -27,9 +27,12 @@ if __name__ == '__main__':
         sys.exit()
     ALPHA = int(100 * float(sys.argv[1]))
     FOLDER = sys.argv[2]
-    if not FOLDER.endswith('/'): FOLDER = FOLDER + '/'
+    if not FOLDER.endswith('/'):
+        FOLDER = FOLDER + '/'
 
-    all_trials = sorted([f for f in os.listdir(FOLDER) if not f.startswith('batch')])
+    all_trials = sorted(
+                [f for f in os.listdir(FOLDER) if not f.startswith('batch')]
+            )
     print('BARRRR', all_trials)
     trial_files = []
     for t in all_trials:
@@ -47,19 +50,20 @@ if __name__ == '__main__':
     for t in trial_files:
         N = int(t[t.find('N-') + 2: t.find('K-')])
         batch = np.loadtxt(FOLDER + t, skiprows=2, delimiter=',')
-        r = batch[:,0]
-        r2 = batch[:,1]
-        psi = batch[:,2]
-        a = batch[:,3]
+        r = batch[:, 0]
+        r2 = batch[:, 1]
+        psi = batch[:, 2]
+        a = batch[:, 3]
         X = N * (r2 - r**2)
         all_r.append(r)
         all_psi.append(psi)
         all_X.append(X)
         all_a.append(a)
     n_plots = 3
-    fig = plt.figure(figsize=(12,10))
+    fig = plt.figure(figsize=(12, 10))
     axes = fig.subplots(nrows=n_plots, ncols=1, sharex=True)
     stacked_plot(axes[0], all_a, all_r, styling=['-'])
     stacked_plot(axes[1], all_a, all_psi, styling=['-'])
     stacked_plot(axes[2], all_a, all_X, log=True, styling=['-'])
     plt.show()
+
