@@ -3,6 +3,7 @@
 //#define HEADER "20-3-0_0-seed_42.h"
 //#endif
 
+#include <time.h>
 #include <iostream>
 #include <string.h>
 #include <fstream>
@@ -311,7 +312,7 @@ void update_site(uint16_t i) {
     }
     deltas[i] = newDelta;
     rates.sum -= rates.array[i];
-    rates.array[i] = ratesTable[(ki - K_MIN) * (ki + K_MAX) + ki + newDelta];
+    rates.array[i] = ratesTable[(ki - K_MIN) * (ki + K_MIN) + ki + newDelta];
     rates.sum += rates.array[i];
 }
 
@@ -368,9 +369,7 @@ void log_trial_to_file(
               << "  BURN=" << B
               << "  ITERS=" << I << '\n';
 
-    size_t PROGRESS_INTERVAL = (I+B)/20;
     size_t log_counter = 1;
-    size_t progress_counter = 1;
     double time_elapsed = 0;
     for (size_t i = 0; i < (I + B); ++i) {
         double dt = 1.0 / rates.sum;
@@ -379,19 +378,13 @@ void log_trial_to_file(
 
         if (log_counter == SAVE_INTERVAL) {
             double r = get_squared_op();
-	    double psi = get_psi_op();
+            double psi = get_psi_op();
             std::fprintf(
                     f, "%16.16f,%16.16f,%d,%d,%f,%f\n", r, psi, states.pop[0], states.pop[1], time_elapsed, dt
                 );
             log_counter = 0;
         }
-        if (progress_counter == PROGRESS_INTERVAL) {
-            std::cout << std::fixed << std::setprecision(1)
-                      << "[" << (float) i/(I+B)*100 << "%]\n";
-            progress_counter = 0;
-        }
         log_counter++;
-        progress_counter++;
     }
 }
 
@@ -616,12 +609,11 @@ int main(int argc, char* argv[]) {
 
     if (RUN_TRIAL) {
         const unsigned int stream = 2u;
-        const size_t ITERS = 5 * N * std::log(N);
-        const size_t BURN = 5 * N * std::log(N);
-        const size_t SAVE_INTERVAL = 1;
-	std::cout << "Beginning trial with:\n" << "a=" << coupling
-		  << "  seed=" << seed << "  stream=" << stream << '\n';
-        initialize_everything(coupling, seed, stream, true);
+        const size_t ITERS = 10 * N * log(N);
+        const size_t BURN = 10 * N * log(N);
+        int SAVE_INTERVAL = 1;
+        std::cout << "Beginning trial with:\n" << "a=" << coupling
+                  << "  seed=" << seed << "  stream=" << stream << '\n';
 
         // create log file name
         char file_name[50];
@@ -642,11 +634,34 @@ int main(int argc, char* argv[]) {
         FILE* singleTrialFile;
         singleTrialFile = std::fopen(file_name, "w");
         print_file_header(singleTrialFile, coupling, BURN, ITERS);
-        log_trial_to_file(
-                ITERS, BURN, seed, stream,
-                singleTrialFile, SAVE_INTERVAL
-            );
+
+        initialize_everything(coupling, seed, stream, true);
+
+        // variables for measuring code run-times
+        struct timespec start, finish;
+        double elapsed, max = -1, min = 1e6, avg = 0;
+        int n_bench = 100;
+        for (int i = 0; i < n_bench; i++) {
+            clock_gettime(CLOCK_MONOTONIC, &start);
+            log_trial_to_file(
+                    ITERS, BURN, seed, stream,
+                    singleTrialFile, SAVE_INTERVAL
+                );
+            clock_gettime(CLOCK_MONOTONIC, &finish);
+            elapsed = (finish.tv_sec - start.tv_sec);
+            elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+            if (elapsed > max) max = elapsed;
+            if (elapsed < min) min = elapsed;
+            avg += elapsed;
+        }
+        avg /= n_bench;
         std::fclose(singleTrialFile);
+
+        std::cout << std::fixed << std::setprecision(6)
+                  << "n_bench=" << n_bench << "\n"
+                  << "Min:" << min
+                  << " Max:" << max
+                  << " Avg:" << avg << "\n";
     }
 
     //////////////////////////////////////////////////////////////////////////
