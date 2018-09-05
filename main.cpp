@@ -610,16 +610,17 @@ void print_rates() {
 
 std::string getDefaultTrialFilename(double coupling) {
     char fname[50];
-    sprintf(fname, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
-    fname[16] = fname[26] = '_';
+    sprintf(fname, "trial-N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
+    fname[22] = '_';
+    fname[32] = '_';
     int counter = 1;
     while (std::ifstream(fname)) {
         sprintf(
                 fname, "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
                 N, K, p, coupling, counter
             );
-        fname[16] = '_';
-        fname[26] = '_';
+        fname[22] = '_';
+        fname[32] = '_';
         counter++;
     }
     return fname;
