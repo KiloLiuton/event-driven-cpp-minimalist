@@ -610,13 +610,18 @@ void print_rates() {
 
 std::string getDefaultTrialFilename(double coupling) {
     char fname[50];
-    sprintf(fname, "trial-N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
+    sprintf(
+            fname,
+            "trial-N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat",
+            N, K, p, coupling
+        );
     fname[22] = '_';
     fname[32] = '_';
     int counter = 1;
     while (std::ifstream(fname)) {
         sprintf(
-                fname, "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
+                fname,
+                "N-%05dK-%04dp-%6.6fa-%6.6f_v%d.dat",
                 N, K, p, coupling, counter
             );
         fname[22] = '_';
@@ -631,15 +636,21 @@ std::string getDefaultBatchFilename(
         double coupling_end
     ) {
     char fname[90];
-    sprintf(fname, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
-            N, K, p, coupling_start, coupling_end);
+    sprintf(
+            fname,
+            "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v0.dat",
+            N, K, p, coupling_start, coupling_end
+        );
     fname[24] = '_';
     fname[34]  ='_';
     fname[40] = '_';
     int counter = 1;
     while (std::ifstream(fname)) {
-        sprintf(fname, "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
-                N, K, p, coupling_start, coupling_end, counter);
+        sprintf(
+                fname,
+                "batches-N-%05dK-%04dp-%6.6fa-%3.3f-%3.3f_v%d.dat",
+                N, K, p, coupling_start, coupling_end, counter
+            );
         fname[24] = '_';
         fname[34] = '_';
         fname[40] = '_';
@@ -791,6 +802,11 @@ int main(int argc, char** argv) {
                   << "stream:   " << t_params.stream << '\n';
 
         FILE* trial_log_file = std::fopen(t_params.filename.c_str(), "w");
+        fprintf(
+                trial_log_file,
+                "Graph_params: N=%d, K=%d, p=%f, seed=%d\n",
+                N, K, p, TOPOLOGY_SEED
+            );
         fprintf(trial_log_file, "r,psi,pop0,pop1,time_elapsed,dt\n");
 
         pcg32 RNG(t_params.seed, t_params.stream);
@@ -849,7 +865,19 @@ int main(int argc, char** argv) {
         }
 
         FILE* batches_log_file = std::fopen(b_params.filename.c_str(), "w");
-        fprintf(batches_log_file, "<r>,<sum r2>,psi,omega\n");
+        fprintf(
+                batches_log_file,
+                "Graph_params: N=%d, K=%d, p=%f, seed=%d\n",
+                N, K, p, TOPOLOGY_SEED
+            );
+        fprintf(
+                batches_log_file,
+                "coupling        ,"
+                "<r>             ,"
+                "<sum r2>        ,"
+                "psi             ,"
+                "omega           \n"
+            );
 
         for (int i = 0; i < b_params.n_batches; i++) {
             double a;
@@ -868,7 +896,8 @@ int main(int argc, char** argv) {
                 );
             fprintf(
                     batches_log_file, 
-                    "%16.16f,%16.16f,%16.16f,%16.16f\n",
+                    "%16.16f,%16.16f,%16.16f,%16.16f,%16.16f\n",
+                    a,
                     batch.r,
                     batch.r2,
                     batch.psi,
