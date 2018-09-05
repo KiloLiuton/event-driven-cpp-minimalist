@@ -111,14 +111,14 @@ void log_trial_to_file(
             bool verbose
         );
 /* run a trial and return the average order parameters after BURN iters */
-Trial run_trial(
+Trial run_no_omega_trial(
             size_t iters,
             size_t burn,
             pcg32 &RNG,
             Uniform &uniform
         );
 /* run a trial and return the average order parameters and frequency omega */
-Trial run_omega_trial(
+Trial run_trial(
         size_t iters,
         size_t burn,
         pcg32 &RNG,
@@ -141,16 +141,10 @@ void print_states();
 void print_deltas();
 /* print transitions rates of every site */
 void print_rates();
-/* print the topology included in dynamic header */
-void print_geometry();
 /* get the default file name based on current existing files*/
 std::string getDefaultTrialFilename(double coupling);
 /* get the default file name based on current existing files*/
 std::string getDefaultBatchFilename(double coupling_start, double coupling_end);
-/* print a header to the trial output file (outputs results of a single run) */
-void print_file_header(FILE* file, double coupling, int BURN, int ITERS);
-/* print a header to the batches output file (many trials for many couplings) */
-void print_batches_file_header(FILE* file, int TRIALS, int BURN, int ITERS);
 
 void initialize_everything(
             double a,
@@ -423,7 +417,7 @@ void log_trial_to_file(
     }
 }
 
-Trial run_trial(
+Trial run_no_omega_trial(
         size_t iters,
         size_t burn,
         pcg32 &RNG,
@@ -452,7 +446,7 @@ Trial run_trial(
     return trial;
 }
 
-Trial run_omega_trial(
+Trial run_trial(
         size_t iters,
         size_t burn,
         pcg32 &RNG,
@@ -556,7 +550,7 @@ Batch run_batch(
     initialize_everything(coupling, RNG);
     for (size_t i = 0; i < trials; i++) {
         pcg32 RNG(2);
-        Trial trial = run_omega_trial(
+        Trial trial = run_trial(
                 trial_iters,
                 trial_burn,
                 RNG,
@@ -614,24 +608,6 @@ void print_rates() {
     std::cout << '\n';
 }
 
-void print_geometry() {
-    std::cout << "INDEXES:\n";
-    for (int i = 0; i < N; i++) {
-        std::cout << INDEXES[i] << ' ';
-    }
-    std::cout << '\n';
-    std::cout << "NUMBER_OF_NEIGHBORS\n";
-    for (int i = 0; i < N; i++) {
-        std::cout << NUMBER_OF_NEIGHBORS[i] << ' ';
-    }
-    std::cout << '\n';
-    std::cout << "NEIGHBOR_LIST\n";
-    for (int i = 0; i < N*2*K; i++) {
-        std::cout << NEIGHBOR_LIST[i] << ' ';
-    }
-    std::cout << '\n';
-}
-
 std::string getDefaultTrialFilename(double coupling) {
     char fname[50];
     sprintf(fname, "N-%05dK-%04dp-%6.6fa-%6.6f_v0.dat", N, K, p, coupling);
@@ -671,24 +647,6 @@ std::string getDefaultBatchFilename(
     return fname;
 }
 
-void print_file_header(FILE* f, double a, int BURN, int ITERS) {
-    fprintf(
-            f,
-            "N=%d,k=%d,p=%.6f,a=%.6f,BURN=%d,ITERS=%d\n",
-            N, K, p, a, BURN, ITERS
-        );
-    fprintf(f, "r**2,psi,N0,N1,time,dt\n");
-}
-
-void print_batches_file_header(FILE* f, int TRIALS, int BURN, int ITERS) {
-    fprintf(
-            f,
-            "N=%d, K=%d, p=%f, TRIALS=%d, BURN=%d, ITERS=%d\n",
-            N, K, p, TRIALS, BURN, ITERS
-        );
-    fprintf(f, "<<r>>,<<r>^2>,<<psi>>,<<omega>>,a\n");
-}
-
 bool cmdOptionExists(char** begin, char** end, const std::string& option)
 {
     return std::find(begin, end, option) != end;
@@ -700,24 +658,6 @@ std::string getCmdOption(char** begin, char** end, const std::string& option) {
         return *s;
     }
     return std::string();
-}
-
-std::string replaceAllInstances(
-            std::string s,
-            const std::string& expr,
-            const std::string& by
-        ) {
-    /*Replace all instances of `expr` in s by `by` and return
-     * the resulting string*/
-    size_t f = s.find(expr);
-    if (f == std::string::npos) {
-        return s;
-    }
-    while (f != std::string::npos) {
-        s = s.replace(f, expr.length(), by);
-        f = s.find(expr);
-    }
-    return s;
 }
 
 int main(int argc, char** argv) {
@@ -871,7 +811,7 @@ int main(int argc, char** argv) {
             int n_bench = 100;
             for (int i = 0; i < n_bench; i++) {
                 clock_gettime(CLOCK_MONOTONIC, &start);
-                run_omega_trial(t_params.iters, t_params.burn, RNG, uniform);
+                run_trial(t_params.iters, t_params.burn, RNG, uniform);
                 clock_gettime(CLOCK_MONOTONIC, &finish);
 
                 // report elapsed time
@@ -935,7 +875,7 @@ int main(int argc, char** argv) {
                );
 
             std::cout << a << " done. ["
-                      << i << "\\" << b_params.n_batches
+                      << i + 1 << "\\" << b_params.n_batches
                       << "]\n";
         }
         std::fclose(batches_log_file);
