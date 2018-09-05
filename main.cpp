@@ -872,11 +872,11 @@ int main(int argc, char** argv) {
             );
         fprintf(
                 batches_log_file,
-                "coupling        ,"
-                "<r>             ,"
-                "<sum r2>        ,"
-                "psi             ,"
-                "omega           \n"
+                "coupling          ,"
+                "<r>               ,"
+                "<sum r2>          ,"
+                "psi               ,"
+                "omega             \n"
             );
 
         for (int i = 0; i < b_params.n_batches; i++) {
