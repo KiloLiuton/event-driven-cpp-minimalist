@@ -2,6 +2,7 @@
 #define DEFAULT_SEED 42u
 #define DEFAULT_STREAM 23u
 
+#include <chrono>
 #include <ctime>
 #include <iostream>
 #include <string>
@@ -581,7 +582,7 @@ Batch run_batch(
     batch.psi = psi / trials;
     batch.psi2 = psi2 / trials;
     batch.chi_r = batch.r2 - batch.r * batch.r;
-    batch.chi_r = batch.psi2 - batch.psi * batch.psi;
+    batch.chi_psi = batch.psi2 - batch.psi * batch.psi;
     batch.omega = omega / trials;
     return batch;
 }
@@ -714,7 +715,6 @@ int main(int argc, char** argv) {
         std::cout << help_message;
         return 0;
     }
-    bool benchmark = cmdOptionExists(argv, argv+argc, "--benchmark");
 
     // Get trial parameters
     struct trial_params t_params;
@@ -804,25 +804,6 @@ int main(int argc, char** argv) {
 
     // RUN A TRIAL AND LOG IT TO A FILE
     if (cmdOptionExists(argv, argv+argc, "-t")) {
-        std::cout << "\nLogging trial to file. params:\n"
-                  << "filename: " << t_params.filename << '\n'
-                  << "coupling: " << t_params.coupling << '\n'
-                  << "iters:    " << t_params.iters << '\n'
-                  << "burn:     " << t_params.burn << '\n'
-                  << "seed:     " << t_params.seed << '\n'
-                  << "stream:   " << t_params.stream << '\n';
-
-        FILE* trial_log_file = std::fopen(t_params.filename.c_str(), "w");
-        fprintf(
-                trial_log_file,
-                "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
-                "Dynamics_parameters: coupling=%f iters=%lu burn=%lu "
-                "seed=%lu stream=%lu\n",
-                N, K, p, TOPOLOGY_SEED,
-                t_params.coupling, t_params.iters, t_params.burn,
-                t_params.seed, t_params.stream
-            );
-        fprintf(trial_log_file, "r,psi,pop0,pop1,time_elapsed,dt\n");
 
         pcg32 RNG(t_params.seed, t_params.stream);
         Uniform uniform(0.0, 1.0);
@@ -830,7 +811,26 @@ int main(int argc, char** argv) {
         // variables for measuring code run-times
         struct timespec start, finish;
         double elapsed;
-        if (!benchmark) {
+        if (!cmdOptionExists(argv, argv+argc, "--benchmark")) {
+            std::cout << "\nLogging trial to file. params:\n"
+                      << "filename: " << t_params.filename << '\n'
+                      << "coupling: " << t_params.coupling << '\n'
+                      << "iters:    " << t_params.iters << '\n'
+                      << "burn:     " << t_params.burn << '\n'
+                      << "seed:     " << t_params.seed << '\n'
+                      << "stream:   " << t_params.stream << '\n';
+
+            FILE* trial_log_file = std::fopen(t_params.filename.c_str(), "w");
+            fprintf(
+                    trial_log_file,
+                    "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
+                    "Dynamics_parameters: coupling=%f iters=%lu burn=%lu "
+                    "seed=%lu stream=%lu\n"
+                    "r,psi,pop0,pop1,time_elapsed,dt\n",
+                    N, K, p, TOPOLOGY_SEED,
+                    t_params.coupling, t_params.iters, t_params.burn,
+                    t_params.seed, t_params.stream
+                );
             clock_gettime(CLOCK_MONOTONIC, &start);
             log_trial_to_file(
                     t_params.iters,
@@ -840,6 +840,8 @@ int main(int argc, char** argv) {
                     trial_log_file
                 );
             clock_gettime(CLOCK_MONOTONIC, &finish);
+            std::fclose(trial_log_file);
+
             elapsed = (finish.tv_sec - start.tv_sec);
             elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
             std::cout << "Trial finished in: " << elapsed << "s \n";
@@ -860,13 +862,12 @@ int main(int argc, char** argv) {
                 avg += elapsed;
             }
             avg /= n_bench;
-            std::fclose(trial_log_file);
 
             std::cout << std::fixed << std::setprecision(6)
                       << "n_bench=" << n_bench << "\n"
-                      << "Min:" << min
-                      << " Max:" << max
-                      << " Avg:" << avg << "\n";
+                      << "Min:" << min << "s"
+                      << " Max:" << max << "s"
+                      << " Avg:" << avg << "s" << "\n";
         }
     }
 
@@ -889,20 +890,17 @@ int main(int argc, char** argv) {
         fprintf(
                 batches_log_file,
                 "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
-                "Dynamics_parameters: trials=%lu iters=%lu burn=%lu\n",
+                "Dynamics_parameters: trials=%lu iters=%lu burn=%lu\n"
+                "coupling          ,"
+                "r                 ,"
+                "r2                ,"
+                "psi               ,"
+                "psi2              ,"
+                "chi_r             ,"
+                "chi_psi           ,"
+                "omega             \n",
                 N, K, p, TOPOLOGY_SEED,
                 b_params.trials, b_params.iters, b_params.burn
-            );
-        fprintf(
-                batches_log_file,
-                "coupling          ,"
-                "<r>               ,"
-                "<sum_r2>          ,"
-                "<psi>               ,"
-                "<sum_psi2>        ,"
-                "<chi_r>           ,"
-                "<chi_psi>         ,"
-                "omega             \n"
             );
 
         // variables for measuring code run-times
@@ -939,11 +937,15 @@ int main(int argc, char** argv) {
                     batch.omega
                );
 
+            using std::chrono::system_clock;
+            std::time_t now = system_clock::to_time_t(system_clock::now());
             elapsed = (finish.tv_sec - start.tv_sec);
             elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-            std::cout << std::fixed << std::setprecision(6) << a << " done. ["
+            std::cout << std::fixed << "["
                       << i + 1 << "\\" << b_params.n_batches
-                      << "] Batch finished in: " << elapsed << "s\n";
+                      << "] N=" << N << " K=" << K << " p=" << p << " a=" << a
+                      << " Batch finished in: " << std::setprecision(6)
+                      << elapsed << "s -- " << std::ctime(&now);
         }
         std::fclose(batches_log_file);
     }
