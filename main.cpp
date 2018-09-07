@@ -891,14 +891,7 @@ int main(int argc, char** argv) {
                 batches_log_file,
                 "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
                 "Dynamics_parameters: trials=%lu iters=%lu burn=%lu\n"
-                "coupling          ,"
-                "r                 ,"
-                "r2                ,"
-                "psi               ,"
-                "psi2              ,"
-                "chi_r             ,"
-                "chi_psi           ,"
-                "omega             \n",
+                "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega\n",
                 N, K, p, TOPOLOGY_SEED,
                 b_params.trials, b_params.iters, b_params.burn
             );
