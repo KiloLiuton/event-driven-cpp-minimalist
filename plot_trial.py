@@ -26,17 +26,17 @@ for filename in sys.argv[1:]:
     xmin = 0.00
     xmax = 1.00
     L = datap.shape[0]
-    r   = np.sqrt(datap['r'].values)[int(xmin*L): int(xmax*L)]
+    r = np.sqrt(datap['r'].values)[int(xmin*L): int(xmax*L)]
     psi = datap['psi'].values[int(xmin*L): int(xmax*L)]
-    n0  = datap['pop0'].values[int(xmin*L): int(xmax*L)]
-    n1  = datap['pop1'].values[int(xmin*L): int(xmax*L)]
-    t   = datap['time_elapsed'].values[int(xmin*L): int(xmax*L)]
-    dt  = datap['dt'].values[int(xmin*L): int(xmax*L)]
+    n0 = datap['pop0'].values[int(xmin*L): int(xmax*L)]
+    n1 = datap['pop1'].values[int(xmin*L): int(xmax*L)]
+    t = datap['time_elapsed'].values[int(xmin*L): int(xmax*L)]
+    dt = datap['dt'].values[int(xmin*L): int(xmax*L)]
 
     fig = plt.figure()
     ax = fig.add_subplot(311, facecolor='yellow')
-    ax2 = fig.add_subplot(312)
-    ax3 = fig.add_subplot(313)
+    ax2 = fig.add_subplot(312, sharex=ax)
+    ax3 = fig.add_subplot(313, sharex=ax)
     ax.set_title(title)
     ylim = max(max(psi), max(r))
     ax2.set_ylim(0, ylim)
@@ -44,10 +44,12 @@ for filename in sys.argv[1:]:
 
     ax.set_xlim(t[0], t[-1])
     ax.set_ylim(0, N)
-    ax.set_xlabel('Time')
-    ax.set_ylabel('Population')
-    ax2.set_xlabel('Time')
-    ax2.set_ylabel('Order parameter r')
+    ax.set_ylabel('Populations')
+    ax2.set_ylabel('$r$')
+    ax2.set_xlim(t[0], t[-1])
+    ax3.set_xlabel('Time')
+    ax3.set_ylabel('$\\psi$')
+    ax3.set_xlim(t[0], t[-1])
 
     if (burn < xmax*L) and (burn > xmin*L):
         ax.axvline(t[burn - int(xmin*L)], color='red', lw=2)
