@@ -18,7 +18,7 @@ s_ = $(shell printf %d $(s))
 h = "$(N_)-$(K_)-$(p_)-seed_$(s_).h"
 prog = "sim-$(N_)-$(K_)-$(p_)-graphseed_$(s_)"
 
-all: $(prog) compile_commands.json
+all: $(prog)
 
 $(h):
 	./build_header.py $(N) $(K) $(p) $(s)
@@ -30,9 +30,6 @@ $(ODIR)/%.o: %.cpp $(h)
 # link objects into executable '$^' = right side of ':'
 $(prog): $(OBJ)
 	$(CC) -o $@ $^ $(LDFLAGS)
-
-compile_commands.json: Makefile
-	bear $(MAKE)
 
 .PHONY: clean
 clean:
