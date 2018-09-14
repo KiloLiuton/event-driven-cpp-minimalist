@@ -13,13 +13,15 @@ def writeHeader(
     with open(fname, 'w') as f:
         K_MAX = max(NUMBER_OF_NEIGHBORS)
         K_MIN = min(NUMBER_OF_NEIGHBORS)
-        f.write('#ifndef TOPOLOGY_H\n#define TOPOLOGY_H\n\n#include <iostream>\n\n')
+        f.write('#ifndef TOPOLOGY_H\n#define TOPOLOGY_H'
+                '\n\n#include <iostream>\n\n')
         f.write('constexpr uint16_t N = %d;\n' % N)
         f.write('constexpr uint16_t K = %d;\n' % K)
         f.write('constexpr float p = %6.6f;\n' % p)
         f.write('constexpr uint16_t K_MAX = %d;\n' % K_MAX)
         f.write('constexpr uint16_t K_MIN = %d;\n' % K_MIN)
-        f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n' % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
+        f.write('constexpr uint32_t NUM_POSSIBLE_TRANSITIONS = %d;\n'
+                % ((K_MAX - K_MIN + 1) * (K_MAX + K_MIN + 1)))
         f.write('constexpr uint32_t TOPOLOGY_SEED = %d;\n\n' % seed)
         f.write('constexpr uint32_t INDEXES[] = {\n')
         f.write(str(INDEXES).strip('[]') + '\n')
@@ -35,7 +37,9 @@ def writeHeader(
 
 def createHeader(N, K, p, s):
     random.seed(s)
-    header_filename = ('%05d' % N + '-' + '%04d' % K + '-' + re.sub('\.', '_', '%6.6f' % p) + '-seed_' + '%d' % s + '.h')
+    header_filename = ('%05d' % N + '-' + '%04d' % K + '-'
+                       + re.sub('\\.', '_', '%6.6f' % p)
+                       + '-seed_' + '%d' % s + '.hpp')
 
     if header_filename in os.listdir():
         print('File already exists! No need to create it :)')
