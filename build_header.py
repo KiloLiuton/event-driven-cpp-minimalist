@@ -13,7 +13,7 @@ def writeHeader(
     with open(fname, 'w') as f:
         K_MAX = max(NUMBER_OF_NEIGHBORS)
         K_MIN = min(NUMBER_OF_NEIGHBORS)
-        f.write('#ifndef TOPOLOGY_H\n#define TOPOLOGY_H'
+        f.write('#ifndef TOPOLOGY_HPP\n#define TOPOLOGY_HPP'
                 '\n\n#include <iostream>\n\n')
         f.write('constexpr uint16_t N = %d;\n' % N)
         f.write('constexpr uint16_t K = %d;\n' % K)
