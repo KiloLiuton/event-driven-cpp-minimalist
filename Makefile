@@ -4,8 +4,8 @@ _OBJ = main.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
 
 CC = g++
-CFLAGS = -Wall -std=c++11 -O3 -march=native -I include
-LDFLAGS = -lm
+CFLAGS = -Wall -std=c++11 -O3 -march=native -I include -fopenmp
+LDFLAGS = -lm -fopenmp
 
 N ?= 20
 K ?= 3
@@ -15,10 +15,10 @@ N_ = $(shell printf %05d $(N))
 K_ = $(shell printf %04d $(K))
 p_ = $(shell echo $(p) | sed 's/\./_/')
 s_ = $(shell printf %d $(s))
-h = "$(N_)-$(K_)-$(p_)-seed_$(s_).h"
+h = "$(N_)-$(K_)-$(p_)-seed_$(s_).hpp"
 prog = "sim-$(N_)-$(K_)-$(p_)-graphseed_$(s_)"
 
-all: $(prog)
+all: $(prog) compile_commands.json
 
 $(h):
 	./build_header.py $(N) $(K) $(p) $(s)
@@ -30,6 +30,9 @@ $(ODIR)/%.o: %.cpp $(h)
 # link objects into executable '$^' = right side of ':'
 $(prog): $(OBJ)
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+$compile_commands.json: Makefile
+	bear $(MAKE)
 
 .PHONY: clean
 clean:

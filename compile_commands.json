@@ -1,0 +1,21 @@
+[
+    {
+        "arguments": [
+            "c++",
+            "-c",
+            "-include",
+            "00020-0003-0_000000-seed_42.h",
+            "-Wall",
+            "-std=c++11",
+            "-O3",
+            "-march=native",
+            "-I",
+            "include",
+            "-o",
+            "obj/main.o",
+            "main.cpp"
+        ],
+        "directory": "/home/kevin/phd/ev_driv_sim",
+        "file": "main.cpp"
+    }
+]
