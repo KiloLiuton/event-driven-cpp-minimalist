@@ -1,5 +1,5 @@
-#ifndef TOPOLOGY_H
-#define TOPOLOGY_H
+#ifndef TOPOLOGY_HPP
+#define TOPOLOGY_HPP
 
 #include <iostream>
 
