@@ -2,6 +2,7 @@
 #define DEFAULT_SEED 42u
 #define DEFAULT_STREAM 23u
 
+#include <omp.h>
 #include <chrono>
 #include <ctime>
 #include <iostream>
@@ -56,6 +57,7 @@ typedef struct {
     double chi_r;
     double chi_psi;
     float omega;
+    double time;
     size_t used_seed;
 } Batch;
 
@@ -464,7 +466,8 @@ void log_trial_to_file(
         fprintf(
                 log_file,
                 "%16.16f,%16.16f,%d,%d,%f,%f\n",
-                r, psi, local_states.pop[0], local_states.pop[1], time_elapsed, dt
+                r, psi, local_states.pop[0], local_states.pop[1],
+                time_elapsed, dt
             );
     }
 }
@@ -588,58 +591,57 @@ Batch run_batch(
             size_t trials,
             bool verbose = false
         ) {
-    size_t PROGRESS_INTERVAL = trials / 6;
-    size_t progress_counter = 0;
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+
+    // shared variables for each trial
+    const size_t seed = 23u * current_time.tv_nsec;
+    Uniform uniform(0.0, 1.0);
+
+    // private variables for each trial
     double r = 0;
     double r2 = 0;
     double psi = 0;
     double psi2 = 0;
     double omega = 0;
+    struct timespec start, finish;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    initialize_rates_table(coupling);
+#pragma omp parallel default(none) \
+    firstprivate(trial_iters,trial_burn,trials,uniform) \
+    reduction(+:r,r2,psi,psi2,omega)
+    {
+        pcg32 RNG(seed);
 
-    struct timespec current_time;
-    clock_gettime(CLOCK_MONOTONIC, &current_time);
-    size_t seed = 23u * current_time.tv_nsec;
-    pcg32 RNG(seed);
-    Uniform uniform(0.0, 1.0);
-
-    States local_states;
-    Deltas local_deltas;
-    Rates local_rates;
-    initialize_everything(
-            coupling,
-            local_states,
-            local_deltas,
-            local_rates,
-            RNG
-        );
-    for (size_t i = 0; i < trials; i++) {
-        // give each trial a unique stream
-        pcg32 trial_rng(seed, i);
-        initialize_states(local_states, RNG);
-        initialize_deltas(local_states, local_deltas);
-        initialize_rates(local_deltas, local_rates);
-        Trial trial = run_trial(
-                trial_iters,
-                trial_burn,
-                local_states,
-                local_deltas,
-                local_rates,
-                trial_rng,
-                uniform
-            );
-        r += trial.r;
-        r2 += std::pow(trial.r, 2.0);
-        psi += trial.psi;
-        psi2 += std::pow(trial.psi, 2.0);
-        omega += trial.omega;
-
-        progress_counter++;
-        if (verbose && progress_counter == PROGRESS_INTERVAL) {
-            std::cout << std::setprecision(1) << std::fixed
-                      << (float) i / trials * 100 << "%\n";
-            progress_counter = 0;
+        States states;
+        Deltas deltas;
+        Rates rates;
+        reset_system(states, deltas, rates, RNG);
+    #pragma omp for
+        for (size_t i = 0; i < trials; i++) {
+            pcg32 trial_rng(seed, i);
+            initialize_states(states, RNG);
+            initialize_deltas(states, deltas);
+            initialize_rates(deltas, rates);
+            Trial trial = run_trial(
+                    trial_iters,
+                    trial_burn,
+                    states,
+                    deltas,
+                    rates,
+                    trial_rng,
+                    uniform
+                );
+            r += trial.r;
+            r2 += std::pow(trial.r, 2.0);
+            psi += trial.psi;
+            psi2 += std::pow(trial.psi, 2.0);
+            omega += trial.omega;
         }
     }
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    double elapsed = (finish.tv_sec - start.tv_sec);
+    elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
     Batch batch;
     batch.r = r / trials;
     batch.r2 = r2 / trials;
@@ -648,6 +650,7 @@ Batch run_batch(
     batch.chi_r = batch.r2 - batch.r * batch.r;
     batch.chi_psi = batch.psi2 - batch.psi * batch.psi;
     batch.omega = omega / trials;
+    batch.time = elapsed;
     batch.used_seed = seed;
     return batch;
 }
@@ -867,6 +870,41 @@ int main(int argc, char** argv) {
     std::cout << "N=" << N << " K=" << K << " p=" << p
               << " topology_seed=" << TOPOLOGY_SEED << "\n\n";
 
+    // RUN A BENCHMARK
+    if (cmdOptionExists(argv, argv+argc, "--benchmark")) {
+        struct timespec start, finish;
+        double elapsed;
+        double lowest = std::numeric_limits<double>::infinity();
+        double highest = std::numeric_limits<double>::infinity();
+        double avg = 0;
+        int bench_trials = std::min(100, (int) (800000/(N*K) + 1));
+
+        int iters = 10*N*log(N);
+        States states;
+        Deltas deltas;
+        Rates rates;
+        pcg32 RNG(DEFAULT_SEED< DEFAULT_STREAM);
+        Uniform uniform(0.0, 1.0);
+        initialize_everything(2.0, states, deltas, rates, RNG);
+        for (int i=0; i<bench_trials; i++) {
+            clock_gettime(CLOCK_MONOTONIC, &start);
+            run_trial(iters, 0, states, deltas, rates, RNG, uniform);
+            clock_gettime(CLOCK_MONOTONIC, &finish);
+            elapsed = (finish.tv_sec - start.tv_sec);
+            elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+            if (elapsed > highest) highest = elapsed;
+            if (elapsed < lowest) lowest = elapsed;
+            avg += elapsed;
+        }
+        avg /= bench_trials;
+
+        std::cout << std::fixed << std::setprecision(6)
+                  << "bench_trials=" << bench_trials << "\n"
+                  << "Min:" << lowest << "s"
+                  << " Max:" << highest << "s"
+                  << " Avg:" << avg << "s" << "\n";
+    }
+
     // RUN A TRIAL AND LOG IT TO A FILE
     if (cmdOptionExists(argv, argv+argc, "-t")) {
 
@@ -884,75 +922,42 @@ int main(int argc, char** argv) {
             );
         struct timespec start, finish;    // measure code run-times
         double elapsed;
-        if (!cmdOptionExists(argv, argv+argc, "--benchmark")) {
-            std::cout << "\nLogging trial to file. params:\n"
-                      << "filename: " << t_params.filename << '\n'
-                      << "coupling: " << t_params.coupling << '\n'
-                      << "iters:    " << t_params.iters << '\n'
-                      << "burn:     " << t_params.burn << '\n'
-                      << "seed:     " << t_params.seed << '\n'
-                      << "stream:   " << t_params.stream << '\n';
+        std::cout << "\nLogging trial to file. params:\n"
+                  << "filename: " << t_params.filename << '\n'
+                  << "coupling: " << t_params.coupling << '\n'
+                  << "iters:    " << t_params.iters << '\n'
+                  << "burn:     " << t_params.burn << '\n'
+                  << "seed:     " << t_params.seed << '\n'
+                  << "stream:   " << t_params.stream << '\n';
 
-            FILE* trial_log_file = std::fopen(t_params.filename.c_str(), "w");
-            fprintf(
-                    trial_log_file,
-                    "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
-                    "Dynamics_parameters: coupling=%f iters=%lu burn=%lu "
-                    "seed=%lu stream=%lu\n"
-                    "r,psi,pop0,pop1,time_elapsed,dt\n",
-                    N, K, p, TOPOLOGY_SEED,
-                    t_params.coupling, t_params.iters, t_params.burn,
-                    t_params.seed, t_params.stream
-                );
-            clock_gettime(CLOCK_MONOTONIC, &start);
-            log_trial_to_file(
-                    t_params.iters,
-                    t_params.burn,
-                    local_states,
-                    local_deltas,
-                    local_rates,
-                    RNG,
-                    uniform,
-                    trial_log_file
-                );
-            clock_gettime(CLOCK_MONOTONIC, &finish);
-            std::fclose(trial_log_file);
+        FILE* trial_log_file = std::fopen(t_params.filename.c_str(), "w");
+        fprintf(
+                trial_log_file,
+                "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
+                "Dynamics_parameters: coupling=%f iters=%lu burn=%lu "
+                "seed=%lu stream=%lu\n"
+                "r,psi,pop0,pop1,time_elapsed,dt\n",
+                N, K, p, TOPOLOGY_SEED,
+                t_params.coupling, t_params.iters, t_params.burn,
+                t_params.seed, t_params.stream
+            );
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        log_trial_to_file(
+                t_params.iters,
+                t_params.burn,
+                local_states,
+                local_deltas,
+                local_rates,
+                RNG,
+                uniform,
+                trial_log_file
+            );
+        clock_gettime(CLOCK_MONOTONIC, &finish);
+        std::fclose(trial_log_file);
 
-            elapsed = (finish.tv_sec - start.tv_sec);
-            elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-            std::cout << "Trial finished in: " << elapsed << "s \n";
-        } else {
-            double max = -1, min = 1e6, avg = 0;
-
-            int n_bench = 100;
-            for (int i = 0; i < n_bench; i++) {
-                reset_system(local_states, local_deltas, local_rates, RNG);
-                clock_gettime(CLOCK_MONOTONIC, &start);
-                run_trial(
-                        t_params.iters,
-                        t_params.burn,
-                        local_states,
-                        local_deltas,
-                        local_rates,
-                        RNG, uniform
-                    );
-                clock_gettime(CLOCK_MONOTONIC, &finish);
-
-                // report elapsed time
-                elapsed = (finish.tv_sec - start.tv_sec);
-                elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-                if (elapsed > max) max = elapsed;
-                if (elapsed < min) min = elapsed;
-                avg += elapsed;
-            }
-            avg /= n_bench;
-
-            std::cout << std::fixed << std::setprecision(6)
-                      << "n_bench=" << n_bench << "\n"
-                      << "Min:" << min << "s"
-                      << " Max:" << max << "s"
-                      << " Avg:" << avg << "s" << "\n";
-        }
+        elapsed = (finish.tv_sec - start.tv_sec);
+        elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+        std::cout << "Trial finished in: " << elapsed << "s \n";
     }
 
     // RUN A BATCH OF TRIALS FOR EACH COUPLING STRENGTH
@@ -975,14 +980,13 @@ int main(int argc, char** argv) {
                 batches_log_file,
                 "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
                 "Dynamics_parameters: trials=%lu iters=%lu burn=%lu\n"
-                "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,used_seed\n",
+                "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,processing_time,"
+                "used_seed\n",
                 N, K, p, TOPOLOGY_SEED,
                 b_params.trials, b_params.iters, b_params.burn
             );
 
         // variables for measuring code run-times
-        struct timespec start, finish;
-        double elapsed;
         for (int i = 0; i < b_params.n_batches; i++) {
             double a;
             if (b_params.n_batches <= 1) {
@@ -992,7 +996,6 @@ int main(int argc, char** argv) {
                               / (b_params.n_batches - 1);
                 a = (double) b_params.coupling_start + i * step;
             }
-            clock_gettime(CLOCK_MONOTONIC, &start);
             Batch batch = run_batch(
                     a,
                     b_params.iters,
@@ -1000,11 +1003,10 @@ int main(int argc, char** argv) {
                     b_params.trials,
                     b_params.verbose
                 );
-            clock_gettime(CLOCK_MONOTONIC, &finish);
             fprintf(
                     batches_log_file, 
                     "%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,"
-                    "%16.16f,%lu\n",
+                    "%16.16f,%16.16f,%lu\n",
                     a,
                     batch.r,
                     batch.r2,
@@ -1013,18 +1015,17 @@ int main(int argc, char** argv) {
                     batch.chi_r,
                     batch.chi_psi,
                     batch.omega,
+                    batch.time,
                     batch.used_seed
                );
 
             using std::chrono::system_clock;
             std::time_t now = system_clock::to_time_t(system_clock::now());
-            elapsed = (finish.tv_sec - start.tv_sec);
-            elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
             std::cout << std::fixed << "["
                       << i + 1 << "\\" << b_params.n_batches
                       << "] N=" << N << " K=" << K << " p=" << p << " a=" << a
                       << " Batch finished in: " << std::setprecision(6)
-                      << elapsed << "s -- " << std::ctime(&now);
+                      << batch.time << "s -- " << std::ctime(&now);
         }
         std::fclose(batches_log_file);
     }
