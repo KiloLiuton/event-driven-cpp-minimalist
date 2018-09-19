@@ -1,6 +1,6 @@
 ODIR = obj
 
-_OBJ = main.o
+_OBJ = main.o dynamics.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
 
 CC = g++
@@ -23,11 +23,11 @@ all: $(prog) compile_commands.json
 $(h):
 	./build_header.py $(N) $(K) $(p) $(s)
 
-# make objects. '$@' = left of ':', '$^' = first item on left of ':'
+# For each .o file. '$@' = left of :, '$<' = first dependency (the .c file)
 $(ODIR)/%.o: %.cpp $(h)
 	$(CC) -include $(h) -c -o $@ $< $(CFLAGS)
 
-# link objects into executable '$^' = right side of ':'
+# Link all objects. '$^' = all dependencies
 $(prog): $(OBJ)
 	$(CC) -o $@ $^ $(LDFLAGS)
 

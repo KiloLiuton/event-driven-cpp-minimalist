@@ -11,11 +11,32 @@
             "-march=native",
             "-I",
             "include",
+            "-fopenmp",
             "-o",
             "obj/main.o",
             "main.cpp"
         ],
         "directory": "/home/kevin/phd/ev_driv_sim",
         "file": "main.cpp"
+    },
+    {
+        "arguments": [
+            "c++",
+            "-c",
+            "-include",
+            "00020-0003-0_000000-seed_42.hpp",
+            "-Wall",
+            "-std=c++11",
+            "-O3",
+            "-march=native",
+            "-I",
+            "include",
+            "-fopenmp",
+            "-o",
+            "obj/dynamics.o",
+            "dynamics.cpp"
+        ],
+        "directory": "/home/kevin/phd/ev_driv_sim",
+        "file": "dynamics.cpp"
     }
 ]

@@ -63,34 +63,33 @@ typedef struct {
 
 // GLOBAL VARIABLES
 typedef std::uniform_real_distribution<double> Uniform;
-double ratesTable[NUM_POSSIBLE_TRANSITIONS];
-// Deltas deltas;
 
 // INITIALIZER & GETTER FUNCTIONS
 /* generates a new random configuration and update all dependencies */
 void initialize_everything(
         double coupling,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
         pcg32 &RNG,
-        bool verbose
+        bool verbose=false
     );
 /* reset the current lattice without changing the coupling strength */
 void reset_system(
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
         pcg32 &RNG
     );
 /* populates rates table with a given coupling value */
-void initialize_rates_table(double coupling);
+void initialize_rates_table( double coupling, double rates_table[]);
 /* get the transition rate based on the current delta value of site i */
-double get_rate_from_table(uint16_t i, int16_t d);
+double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]);
 /* populate a given states vector with a random configuration */
 void initialize_states(States &local_states, pcg32 &RNG);
 /* populates a given rates vector from the current rates table */
-void initialize_rates(Deltas &local_deltas, Rates &local_rates);
+void initialize_rates(
+        Deltas &local_deltas,
+        Rates &local_rates, double rates_table[]
+    );
 /* populates delta vector (states must be populated) */
 void initialize_deltas(States &local_states, Deltas &local_deltas);
 /* calculate the squared order parameter of a given states array */
@@ -106,66 +105,53 @@ double get_psi_op(States &local_states, Rates &local_rates);
 /* updates deltas, rates and states for a site and its neighbors */
 void update_site(
         int site_index,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[]
     );
 /* select an index that will undergo transition */
 uint16_t transitionIndex(
         Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
+        pcg32 &RNG, Uniform &uniform
     );
 /* performs a complete step of the event driven simulation */
 uint16_t transition_site(
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform
     );
+
+
 /* run a trial for ITERS time steps after burning BURN steps and save results
  * to log_file. Logged columns are:
  * r**2,N0,N1,time */
 void log_trial_to_file(
-        size_t iters,
-        size_t burn,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform,
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform,
         FILE* log_file,
         bool verbose
     );
 /* run a trial and return the average order parameters after BURN iters */
 Trial run_no_omega_trial(
-        size_t iters,
-        size_t burn,
-        States &local_states,
-        Deltas &local_deltas,
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
         Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
+        pcg32 &RNG, Uniform &uniform
     );
 /* run a trial and return the average order parameters and frequency omega */
 Trial run_trial(
-        size_t iters,
-        size_t burn,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform
     );
 /* determine if there is a crossing of threshold for frequency detection */
 bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown);
 /* execute a batch of trials and record the average order parameter */
 Batch run_batch(
         double coupling,
-        size_t trial_iters,
-        size_t trial_burn,
-        size_t trials,
+        size_t trial_iters, size_t trial_burn, size_t trials,
         bool verbose
     );
 
@@ -181,277 +167,11 @@ std::string getDefaultTrialFilename(double coupling);
 /* get the default file name based on current existing files*/
 std::string getDefaultBatchFilename(double coupling_start, double coupling_end);
 
-void initialize_everything(
-        double a,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        bool verbose=false
-    ) {
-    if (verbose) {
-        std::cout << "\nInitializing: "
-                  << "N=" << N
-                  << "  K=" << K
-                  << "  p=" << p
-                  << "  a=" << a << '\n';
-    }
-    initialize_rates_table(a);
-    if (verbose) {
-        std::cout << "Rates table initialized!\n";
-    }
-    initialize_states(local_states, RNG);
-    if (verbose) {
-        std::cout << "States initialized!\n";
-    }
-    initialize_deltas(local_states, local_deltas);
-    if (verbose) {
-        std::cout << "Deltas initialized!\n";
-    }
-    initialize_rates(local_deltas, local_rates);
-    if (verbose) {
-        std::cout << "Rates initialized!\n\n";
-    }
-}
-
-void reset_system(
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG
-    ) {
-    initialize_states(local_states, RNG);
-    initialize_deltas(local_states, local_deltas);
-    initialize_rates(local_deltas, local_rates);
-}
-
-void initialize_rates_table(double a) {
-    uint16_t k = K_MIN;
-    int16_t d = -K_MIN;
-    for (uint32_t i = 0; i < NUM_POSSIBLE_TRANSITIONS; i++) {
-        if (d > k) {
-            k++;
-            d = -k;
-        }
-        ratesTable[i] = std::exp(a*d/k);
-        d++;
-    }
-}
-
-double get_rate_from_table(uint16_t i, int16_t d) {
-    const uint16_t k = NUMBER_OF_NEIGHBORS[i];
-    uint32_t idx = (k - K_MIN) * (k + K_MIN) + k + d;
-    return ratesTable[idx];
-}
-
-void initialize_states(States &local_states, pcg32 &RNG) {
-    local_states.pop[0] = 0;
-    local_states.pop[1] = 0;
-    local_states.pop[2] = 0;
-    for (uint16_t i = 0; i < N; i++) {
-        uint8_t state = RNG(3);
-        local_states.array[i] = state;
-        switch (state) {
-        case 0:
-            local_states.pop[0]++;
-            break;
-        case 1:
-            local_states.pop[1]++;
-            break;
-        case 2:
-            local_states.pop[2]++;
-            break;
-        default:
-            std::cout << "Error: Generated state out of range\n";
-            break;
-        }
-    }
-}
-
-void initialize_rates(Deltas &local_deltas, Rates &local_rates) {
-    local_rates.sum = .0;
-    for (uint16_t i = 0; i < N; i++) {
-        int d = local_deltas[i];
-        const double r = get_rate_from_table(i, d);
-        local_rates.array[i] = r;
-        local_rates.sum += r;
-    }
-}
-
-void initialize_deltas(States &local_states, Deltas &local_deltas) {
-    for (uint16_t i = 0; i < N; i++) {
-        const uint16_t ki = NUMBER_OF_NEIGHBORS[i];
-        const uint32_t ind = INDEXES[i];
-        const int8_t state = local_states.array[i];
-        // TODO
-        // const int8_t nextState = (state+1) % 3;
-        const int8_t nextState = (state + 1 > 2) ? 0 : state + 1;
-        int16_t d = 0;
-
-        for (uint16_t j = 0; j < ki; j++) {
-            uint16_t nb_ind = NEIGHBOR_LIST[ind+j];
-            int8_t nbState = local_states.array[nb_ind];
-            if (nbState == state) {
-                d--;
-            } else if (nbState == nextState) {
-                d++;
-            }
-        }
-        local_deltas[i] = d;
-    }
-}
-
-double get_squared_op(States &local_states) {
-    uint16_t N0 = local_states.pop[0];
-    uint16_t N1 = local_states.pop[1];
-    uint16_t N2 = local_states.pop[2];
-    return (double) (N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / (N*N);
-}
-
-double get_op(States &local_states) {
-    uint16_t N0 = local_states.pop[0];
-    uint16_t N1 = local_states.pop[1];
-    uint16_t N2 = local_states.pop[2];
-    return (double) sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
-}
-
-double get_squared_psi_op(States &local_states, Rates &local_rates) {
-    double s1 = 0;
-    double s2 = 0;
-    for (size_t i = 0; i < N; i++) {
-        uint8_t s = local_states.array[i];
-        switch (s) {
-        case 0:
-            s1 += local_rates.array[i];
-            break;
-        case 1:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += SIN_PHI1 * local_rates.array[i];
-            break;
-        case 2:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += -SIN_PHI1 * local_rates.array[i];
-            break;
-        default:
-            std::cout << (int) s << "<- Unknown state in get_squared_psi_op!\n";
-            break;
-        }
-    }
-    return (std::pow(s1, 2.0) + std::pow(s2, 2.0)) / (N*N);
-}
-
-double get_psi_op(States &local_states, Rates &local_rates) {
-    double s1 = 0;
-    double s2 = 0;
-    for (size_t i = 0; i < N; i++) {
-        uint8_t s = local_states.array[i];
-        switch (s) {
-       case 0:
-            s1 += local_rates.array[i];
-            break;
-        case 1:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += SIN_PHI1 * local_rates.array[i];
-            break;
-        case 2:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += -SIN_PHI1 * local_rates.array[i];
-            break;
-        default:
-            std::cout << (int) s << " <- Unknown state in get_psi_op!\n";
-            break;
-        }
-    }
-    return std::sqrt(std::pow(s1, 2.0) + std::pow(s2, 2.0)) / N;
-}
-
-void update_site(
-        uint16_t i,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates
-    ) {
-    uint8_t state = local_states.array[i];
-    // TODO
-    // uint8_t nextState = (state + 1) % 3;
-    uint8_t nextState = (state + 1 > 2) ? 0 : state + 1;
-    local_states.array[i] = nextState;
-    local_states.pop[state]--;
-    local_states.pop[nextState]++;
-    int16_t siteDelta = 0;
-    double rateIncrease = 0;
-    double rateDecrease = 0;
-    uint16_t ki = NUMBER_OF_NEIGHBORS[i];
-    for (uint32_t j = INDEXES[i]; j < INDEXES[i] + ki; j++) {
-        uint16_t nbIndex = NEIGHBOR_LIST[j];
-        uint8_t nbState = local_states.array[nbIndex];
-        if (nbState == state) {
-            local_deltas[nbIndex] += 2;
-        } else if (nbState == nextState) {
-            siteDelta -= 1;
-            local_deltas[nbIndex] -= 1;
-        } else {
-            siteDelta += 1;
-            local_deltas[nbIndex] -= 1;
-        }
-        double nbRate = get_rate_from_table(nbIndex, local_deltas[nbIndex]);
-        rateIncrease += nbRate;
-        rateDecrease -= local_rates.array[nbIndex];
-        local_rates.array[nbIndex] = nbRate;
-    }
-    local_deltas[i] = siteDelta;
-    double siteRate = get_rate_from_table(i, local_deltas[i]);
-    rateIncrease += siteRate;
-    rateDecrease -= local_rates.array[i];
-    local_rates.array[i] = siteRate;
-    local_rates.sum += rateIncrease + rateDecrease;
-}
-
-uint16_t transitionIndex(
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
-    ) {
-    double partialRate = 0;
-    double g = 0;
-    double rn = uniform(RNG);
-    double randomRate = rn * local_rates.sum;
-    for (uint16_t id = 0; id < N; ++id) {
-        g = local_rates.array[id];
-        partialRate += g;
-        if (partialRate > randomRate) {
-            return id;
-        }
-    }
-    double actualRate =  0;
-    for (uint16_t i = 0; i < N; i++) {
-        actualRate += local_rates.array[i];
-    }
-    std::cout << "Rates refreshed due to Overflow.\n";
-
-    return N - 1;
-}
-
-uint16_t transition_site(
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
-    ) {
-    uint16_t i = transitionIndex(local_rates, RNG, uniform);
-    update_site(i, local_states, local_deltas, local_rates);
-    return i;
-}
-
 void log_trial_to_file(
-            size_t iters,
-            size_t burn,
-            States &local_states,
-            Deltas &local_deltas,
-            Rates &local_rates,
-            pcg32 &RNG,
-            Uniform &uniform,
+            size_t iters, size_t burn,
+            States &local_states, Deltas &local_deltas,
+            Rates &local_rates, double rates_table[],
+            pcg32 &RNG, Uniform &uniform,
             FILE* log_file
         ) {
     size_t total_iters = iters + burn;
@@ -459,7 +179,11 @@ void log_trial_to_file(
     for (size_t i = 0; i < total_iters; ++i) {
         double dt = 1.0 / local_rates.sum;
         time_elapsed += dt;
-        transition_site(local_states, local_deltas, local_rates, RNG, uniform);
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
 
         double r = get_squared_op(local_states);
 	    double psi = get_psi_op(local_states, local_rates);
@@ -473,19 +197,20 @@ void log_trial_to_file(
 }
 
 Trial run_no_omega_trial(
-        size_t iters,
-        size_t burn,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform
     ) {
     initialize_states(local_states, RNG);
     initialize_deltas(local_states, local_deltas);
-    initialize_rates(local_deltas, local_rates);
+    initialize_rates(local_deltas, local_rates, rates_table);
     for (size_t i = 0; i < burn; i++) {
-        transition_site(local_states, local_deltas, local_rates, RNG, uniform);
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
     }
     double R = 0;
     double PSI = 0;
@@ -495,7 +220,11 @@ Trial run_no_omega_trial(
         R += get_op(local_states) * dt;
         PSI += get_psi_op(local_states, local_rates) * dt;
         time_elapsed += dt;
-        transition_site(local_states, local_deltas, local_rates, RNG, uniform);
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
     }
     Trial trial;
     trial.r = R / time_elapsed;
@@ -505,17 +234,18 @@ Trial run_no_omega_trial(
 }
 
 Trial run_trial(
-        size_t iters,
-        size_t burn,
-        States &local_states,
-        Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG,
-        Uniform &uniform
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform
     ) {
 
     for (size_t i = 0; i < burn; i++) {
-        transition_site(local_states, local_deltas, local_rates, RNG, uniform);
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
     }
     /* measure frequency of oscillations by counting how many times
        population 0 crosses the threshold. After detecting such a
@@ -536,7 +266,11 @@ Trial run_trial(
     double omega;
     double time_elapsed = 0;
     for (size_t i = 0; i < iters; i++) {
-        transition_site(local_states, local_deltas, local_rates, RNG, uniform);
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
         double dt = 1.0 / local_rates.sum;
         R += get_op(local_states) * dt;
         PSI += get_psi_op(local_states, local_rates) * dt;
@@ -586,9 +320,7 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
 
 Batch run_batch(
             double coupling,
-            size_t trial_iters,
-            size_t trial_burn,
-            size_t trials,
+            size_t trial_iters, size_t trial_burn, size_t trials,
             bool verbose = false
         ) {
     struct timespec current_time;
@@ -596,6 +328,7 @@ Batch run_batch(
 
     // shared variables for each trial
     const size_t seed = 23u * current_time.tv_nsec;
+    double rates_table[NUM_POSSIBLE_TRANSITIONS];
     Uniform uniform(0.0, 1.0);
 
     // private variables for each trial
@@ -604,10 +337,11 @@ Batch run_batch(
     double psi = 0;
     double psi2 = 0;
     double omega = 0;
+    initialize_rates_table(coupling, rates_table);
     struct timespec start, finish;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    initialize_rates_table(coupling);
 #pragma omp parallel default(none) \
+    shared(rates_table) \
     firstprivate(trial_iters,trial_burn,trials,uniform) \
     reduction(+:r,r2,psi,psi2,omega)
     {
@@ -616,19 +350,17 @@ Batch run_batch(
         States states;
         Deltas deltas;
         Rates rates;
-        reset_system(states, deltas, rates, RNG);
+        reset_system(states, deltas, rates, rates_table, RNG);
     #pragma omp for
         for (size_t i = 0; i < trials; i++) {
             pcg32 trial_rng(seed, i);
             initialize_states(states, RNG);
             initialize_deltas(states, deltas);
-            initialize_rates(deltas, rates);
+            initialize_rates(deltas, rates, rates_table);
             Trial trial = run_trial(
-                    trial_iters,
-                    trial_burn,
-                    states,
-                    deltas,
-                    rates,
+                    trial_iters, trial_burn,
+                    states, deltas,
+                    rates, rates_table,
                     trial_rng,
                     uniform
                 );
@@ -883,12 +615,18 @@ int main(int argc, char** argv) {
         States states;
         Deltas deltas;
         Rates rates;
-        pcg32 RNG(DEFAULT_SEED< DEFAULT_STREAM);
+        double rates_table[NUM_POSSIBLE_TRANSITIONS];
+        pcg32 RNG(DEFAULT_SEED, DEFAULT_STREAM);
         Uniform uniform(0.0, 1.0);
-        initialize_everything(2.0, states, deltas, rates, RNG);
+        initialize_everything(2.0, states, deltas, rates, rates_table, RNG);
         for (int i=0; i<bench_trials; i++) {
             clock_gettime(CLOCK_MONOTONIC, &start);
-            run_trial(iters, 0, states, deltas, rates, RNG, uniform);
+            run_trial(
+                    iters, 0,
+                    states, deltas,
+                    rates, rates_table,
+                    RNG, uniform
+                );
             clock_gettime(CLOCK_MONOTONIC, &finish);
             elapsed = (finish.tv_sec - start.tv_sec);
             elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
@@ -907,21 +645,6 @@ int main(int argc, char** argv) {
 
     // RUN A TRIAL AND LOG IT TO A FILE
     if (cmdOptionExists(argv, argv+argc, "-t")) {
-
-        States local_states;
-        Deltas local_deltas;
-        Rates local_rates;
-        pcg32 RNG(t_params.seed, t_params.stream);
-        Uniform uniform(0.0, 1.0);
-        initialize_everything(
-                t_params.coupling,
-                local_states,
-                local_deltas,
-                local_rates,
-                RNG
-            );
-        struct timespec start, finish;    // measure code run-times
-        double elapsed;
         std::cout << "\nLogging trial to file. params:\n"
                   << "filename: " << t_params.filename << '\n'
                   << "coupling: " << t_params.coupling << '\n'
@@ -941,15 +664,27 @@ int main(int argc, char** argv) {
                 t_params.coupling, t_params.iters, t_params.burn,
                 t_params.seed, t_params.stream
             );
+
+        States local_states;
+        Deltas local_deltas;
+        Rates local_rates;
+        double rates_table[NUM_POSSIBLE_TRANSITIONS];
+        pcg32 RNG(t_params.seed, t_params.stream);
+        Uniform uniform(0.0, 1.0);
+        initialize_everything(
+                t_params.coupling,
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG
+            );
+        struct timespec start, finish;    // measure code run-times
+        double elapsed;
         clock_gettime(CLOCK_MONOTONIC, &start);
         log_trial_to_file(
-                t_params.iters,
-                t_params.burn,
-                local_states,
-                local_deltas,
-                local_rates,
-                RNG,
-                uniform,
+                t_params.iters, t_params.burn,
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform,
                 trial_log_file
             );
         clock_gettime(CLOCK_MONOTONIC, &finish);
