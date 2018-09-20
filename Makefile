@@ -4,7 +4,7 @@ _OBJ = main.o dynamics.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
 
 CC = g++
-CFLAGS = -Wall -std=c++11 -O3 -march=native -I include -fopenmp
+CFLAGS = -Wall -std=c++11 -O3 -march=native -I pcg_random -fopenmp
 LDFLAGS = -lm -fopenmp
 
 N ?= 20

@@ -1,3 +1,6 @@
+#ifndef DYNAMICS_HPP
+#define DYNAMICS_HPP
+
 #define SIN_PHI1 0.8660254037844387
 #define DEFAULT_SEED 42u
 #define DEFAULT_STREAM 23u
@@ -331,3 +334,5 @@ uint16_t transition_site(
     update_site(i, local_states, local_deltas, local_rates, rates_table);
     return i;
 }
+
+#endif
