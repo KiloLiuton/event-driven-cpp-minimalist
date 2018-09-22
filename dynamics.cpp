@@ -1,78 +1,10 @@
-#ifndef DYNAMICS_HPP
-#define DYNAMICS_HPP
-
 #define SIN_PHI1 0.8660254037844387
 #define DEFAULT_SEED 42u
 #define DEFAULT_STREAM 23u
 
-#include <pcg_random.hpp>
 #include <random>
-
-typedef struct {
-    uint8_t array[N];
-    uint16_t pop[3];
-} States;
-typedef int16_t Deltas[N];
-typedef struct {
-    double array[N];
-    double sum;
-} Rates;
-typedef std::uniform_real_distribution<double> Uniform;
-
-/* generates a new random configuration and update all dependencies */
-void initialize_everything(
-        double coupling,
-        States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[],
-        pcg32 &RNG,
-        bool verbose
-    );
-/* reset the current lattice without changing the coupling strength */
-void reset_system(
-        States &local_states, Deltas &local_deltas,
-        Rates &local_rates,
-        pcg32 &RNG
-    );
-/* populates rates table with a given coupling value */
-void initialize_rates_table( double coupling, double rates_table[]);
-/* get the transition rate based on the current delta value of site i */
-double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]);
-/* populate a given states vector with a random configuration */
-void initialize_states(States &local_states, pcg32 &RNG);
-/* populates a given rates vector from the current rates table */
-void initialize_rates(
-        Deltas &local_deltas,
-        Rates &local_rates, double rates_table[]
-    );
-/* populates delta vector (states must be populated) */
-void initialize_deltas(States &local_states, Deltas &local_deltas);
-/* calculate the squared order parameter of a given states array */
-double get_squared_op(States &local_states);
-/* calculates the order parameter of a given states array */
-double get_op(States &local_states);
-/* calculates the psi order parameter for the current state of the system */
-double get_squared_psi_op(States &local_states, Rates &local_rates);
-/* calculates the psi order parameter for the current state of the system */
-double get_psi_op(States &local_states, Rates &local_rates);
-
-// DYNAMICS FUNCTIONS
-/* updates deltas, rates and states for a site and its neighbors */
-void update_site(
-        int site_index,
-        States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[]
-    );
-/* select an index that will undergo transition */
-uint16_t transitionIndex(
-        Rates &local_rates,
-        pcg32 &RNG, Uniform &uniform
-    );
-/* performs a complete step of the event driven simulation */
-uint16_t transition_site(
-        States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[],
-        pcg32 &RNG, Uniform &uniform
-    );
+#include "pcg_random/pcg_random.hpp"
+#include "dynamics.hpp"
 
 // FUNCTION DEFINITIONS
 void initialize_everything(
@@ -80,7 +12,7 @@ void initialize_everything(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
         pcg32 &RNG,
-        bool verbose=false
+        bool verbose
     ) {
     if (verbose) {
         std::cout << "\nInitializing: "
@@ -178,7 +110,7 @@ void initialize_deltas(States &local_states, Deltas &local_deltas) {
         const uint16_t ki = NUMBER_OF_NEIGHBORS[i];
         const uint32_t ind = INDEXES[i];
         const int8_t state = local_states.array[i];
-        // TODO
+        // TODO benchmark to see which is faster
         // const int8_t nextState = (state+1) % 3;
         const int8_t nextState = (state + 1 > 2) ? 0 : state + 1;
         int16_t d = 0;
@@ -266,7 +198,7 @@ void update_site(
         Rates &local_rates, double rates_table[]
     ) {
     uint8_t state = local_states.array[i];
-    // TODO
+    // TODO benchmark to see which is faster
     // uint8_t nextState = (state + 1) % 3;
     uint8_t nextState = (state + 1 > 2) ? 0 : state + 1;
     local_states.array[i] = nextState;
@@ -335,4 +267,124 @@ uint16_t transition_site(
     return i;
 }
 
-#endif
+Trial run_no_omega_trial(
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform
+    ) {
+    initialize_states(local_states, RNG);
+    initialize_deltas(local_states, local_deltas);
+    initialize_rates(local_deltas, local_rates, rates_table);
+    for (size_t i = 0; i < burn; i++) {
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
+    }
+    double R = 0;
+    double PSI = 0;
+    double time_elapsed = 0;
+    for (size_t i = 0; i < iters; i++) {
+        double dt = 1.0 / local_rates.sum;
+        R += get_op(local_states) * dt;
+        PSI += get_psi_op(local_states, local_rates) * dt;
+        time_elapsed += dt;
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
+    }
+    Trial trial;
+    trial.r = R / time_elapsed;
+    trial.psi = PSI / time_elapsed;
+
+    return trial;
+}
+
+Trial run_trial(
+        size_t iters, size_t burn,
+        States &local_states, Deltas &local_deltas,
+        Rates &local_rates, double rates_table[],
+        pcg32 &RNG, Uniform &uniform
+    ) {
+
+    for (size_t i = 0; i < burn; i++) {
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
+    }
+    /* measure frequency of oscillations by counting how many times
+       population 0 crosses the threshold. After detecting such a
+       crossing we need to wait for a cooldown period to expire due to
+       fluctuations near the crossing. */
+    double period_start = 0;
+    double period_end = 0;
+    bool started = false;
+    bool is_on_cooldown = false;
+    int cd_timer = 0;
+    int crossings = 0;
+    size_t nprev = local_states.pop[0];
+    const int cooldown = N * 1.8;
+    const float threshold = N / 3.0;
+
+    double R = 0;
+    double PSI = 0;
+    double omega;
+    double time_elapsed = 0;
+    for (size_t i = 0; i < iters; i++) {
+        transition_site(
+                local_states, local_deltas,
+                local_rates, rates_table,
+                RNG, uniform
+            );
+        double dt = 1.0 / local_rates.sum;
+        R += get_op(local_states) * dt;
+        PSI += get_psi_op(local_states, local_rates) * dt;
+        time_elapsed += dt;
+
+        size_t n = local_states.pop[0];
+        if (is_crossing(nprev, n, threshold, is_on_cooldown)) {
+            if (!started) {
+                started = true;
+                period_start = time_elapsed;
+            }
+            period_end = time_elapsed;
+            is_on_cooldown = true;
+            crossings++;
+        }
+        if (is_on_cooldown) {
+            cd_timer++;
+        }
+        if (cd_timer > cooldown) {
+            is_on_cooldown = false;
+            cd_timer = 0;
+        }
+        nprev = n;
+    }
+    if (crossings > 1) {
+        omega = (crossings - 1) / 2.0 / (period_end - period_start);
+    } else {
+        omega = 0; // it is possible that no crossings ever happened
+    }
+
+    Trial trial;
+    trial.r = R / time_elapsed;
+    trial.psi = PSI / time_elapsed;
+    trial.omega = omega;
+    trial.duration = time_elapsed;
+
+    return trial;
+}
+
+bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
+    if (((nprev <= t && n > t) || (nprev > t && n <= t)) && !is_on_cooldown) {
+        return true;
+    } else {
+        return false;
+    }
+}
