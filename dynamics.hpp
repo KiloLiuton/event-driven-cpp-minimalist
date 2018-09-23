@@ -38,6 +38,31 @@ typedef struct {
     double duration;
 } Trial;
 
+// parameters to run a batch
+struct batch_params {
+    double coupling_start;
+    double coupling_end;
+    int n_batches;
+    int batch_id;
+    size_t trials;
+    size_t iters;
+    size_t burn;
+    bool verbose;
+};
+
+// data returned by a trial function
+typedef struct {
+    double r;
+    double r2;
+    double psi;
+    double psi2;
+    double chi_r;
+    double chi_psi;
+    float omega;
+    double time;
+    size_t used_seed;
+} Batch;
+
 /* generates a new random configuration and update all dependencies */
 void initialize_everything(
         double coupling,
@@ -111,5 +136,12 @@ Trial run_trial(
 
 /* determine if there is a crossing of threshold for frequency detection */
 bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown);
+
+/* execute a batch of trials and record the average order parameter */
+Batch run_batch(
+        double coupling,
+        size_t trial_iters, size_t trial_burn, size_t trials,
+        bool verbose
+    );
 
 #endif

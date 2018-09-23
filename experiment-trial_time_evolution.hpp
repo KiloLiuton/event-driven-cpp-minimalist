@@ -10,7 +10,6 @@
 
 class Time_evolution {
 public:
-    Time_evolution(struct trial_params t_params);
     Time_evolution(int argc, char** argv);
     /* run a trial for ITERS time steps after burning BURN steps and save
      * results to log_file. */
@@ -39,9 +38,6 @@ private:
     std::string _filename;
 };
 
-Time_evolution::Time_evolution(struct trial_params t_params) {
-    _t_params = t_params;
-}
 Time_evolution::Time_evolution(int argc, char** argv) {
     try {
         std::string opt;

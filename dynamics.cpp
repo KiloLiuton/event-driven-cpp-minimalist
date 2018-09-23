@@ -388,3 +388,72 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
         return false;
     }
 }
+
+Batch run_batch(
+            double coupling,
+            size_t trial_iters, size_t trial_burn, size_t trials,
+            bool verbose = false
+        ) {
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+
+    // shared variables for each trial
+    const size_t seed = 23u * current_time.tv_nsec;
+    double rates_table[NUM_POSSIBLE_TRANSITIONS];
+    Uniform uniform(0.0, 1.0);
+
+    // private variables for each trial
+    double r = 0;
+    double r2 = 0;
+    double psi = 0;
+    double psi2 = 0;
+    double omega = 0;
+    initialize_rates_table(coupling, rates_table);
+    struct timespec start, finish;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#pragma omp parallel default(none) \
+    shared(rates_table) \
+    firstprivate(trial_iters,trial_burn,trials,uniform) \
+    reduction(+:r,r2,psi,psi2,omega)
+    {
+        pcg32 RNG(seed);
+
+        States states;
+        Deltas deltas;
+        Rates rates;
+        reset_system(states, deltas, rates, rates_table, RNG);
+    #pragma omp for
+        for (size_t i = 0; i < trials; i++) {
+            pcg32 trial_rng(seed, i);
+            initialize_states(states, RNG);
+            initialize_deltas(states, deltas);
+            initialize_rates(deltas, rates, rates_table);
+            Trial trial = run_trial(
+                    trial_iters, trial_burn,
+                    states, deltas,
+                    rates, rates_table,
+                    trial_rng,
+                    uniform
+                );
+            r += trial.r;
+            r2 += std::pow(trial.r, 2.0);
+            psi += trial.psi;
+            psi2 += std::pow(trial.psi, 2.0);
+            omega += trial.omega;
+        }
+    }
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    double elapsed = (finish.tv_sec - start.tv_sec);
+    elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+    Batch batch;
+    batch.r = r / trials;
+    batch.r2 = r2 / trials;
+    batch.psi = psi / trials;
+    batch.psi2 = psi2 / trials;
+    batch.chi_r = batch.r2 - batch.r * batch.r;
+    batch.chi_psi = batch.psi2 - batch.psi * batch.psi;
+    batch.omega = omega / trials;
+    batch.time = elapsed;
+    batch.used_seed = seed;
+    return batch;
+}
