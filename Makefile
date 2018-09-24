@@ -11,8 +11,9 @@ N_ = $(shell printf %05d $(N))
 K_ = $(shell printf %04d $(K))
 p_ = $(shell echo $(p) | sed 's/\./_/')
 s_ = $(shell printf %d $(s))
-h = "$(N_)-$(K_)-$(p_)-seed_$(s_).hpp"
-prog = "sim-$(N_)-$(K_)-$(p_)-graphseed_$(s_)"
+h = "$(N_)-$(K_)-$(p_)-gseed_$(s_).hpp"
+prog = "sim-$(N_)-$(K_)-$(p_)-gseed_$(s_)"
+# prog = "sim-" + $(h)
 
 CC = g++
 CFLAGS = -Wall -std=c++11 -O3 -march=native -fopenmp -include $(h)

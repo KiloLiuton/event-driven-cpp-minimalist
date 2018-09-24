@@ -39,7 +39,7 @@ def createHeader(N, K, p, s):
     random.seed(s)
     header_filename = ('%05d' % N + '-' + '%04d' % K + '-'
                        + re.sub('\\.', '_', '%6.6f' % p)
-                       + '-seed_' + '%d' % s + '.hpp')
+                       + '-gseed_' + '%d' % s + '.hpp')
 
     if header_filename in os.listdir():
         print('File already exists! No need to create it :)')

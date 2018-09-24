@@ -68,8 +68,8 @@ int main(int argc, char** argv) {
         "Usage: ./sim[...] [options] [args]\n"
         "-options (args)\n"
         "-h           print this help message\n"
-        "--benchmark  run a benchmark for 100 trials\n\n"
-        "RUN TRIAL\n"
+        "--benchmark  run a benchmark\n\n"
+        "TRIAL TIME EVOLUTION\n"
         "-t           perform a trial with default or specified parameters\n"
         "trial parameters (only available if -t is passed):\n"
         "-tc (real)   [default 2.0] coupling strength for trial\n"
@@ -78,8 +78,8 @@ int main(int argc, char** argv) {
         "-ti (int)    [default 10*N*log(N)] number of iterations in trial\n"
         "-tb (int)    [default 10*N*log(N)] number of burn iterations in trial\n"
         "-tf (string) trial file name\n\n"
-        "RUN BATCH\n"
-        "-b           if this flag is present, perform a batch simulation\n"
+        "CHI CURVE\n"
+        "-b           generate a chi curve for the given coupling values\n"
         "-bs (real)   [default 1.0] initial coupling strength\n"
         "-be (real)   [default 3.6] final coupling strength\n"
         "-bn (int)    [default 20] number of points from initial to final coupling\n"
@@ -147,9 +147,6 @@ int main(int argc, char** argv) {
                   << "  Min: " << fastest << " s\n"
                   << "  Max: " << slowest << " s\n"
                   << "  Avg: " << average << " s\n";
-    }
-
-    if (cmdOptionExists(argv, argv+argc, "-b")) {
     }
 
     return 0;
