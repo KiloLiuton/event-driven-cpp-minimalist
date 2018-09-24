@@ -20,7 +20,7 @@ private:
     size_t it = 10*N*log(N);
     size_t bu = 10*N*log(N);
     struct batch_params _b_params {
-        1.0, 3.6, 20, 0, 400, it, bu, false
+        1.0, 3.6, 20, 0, 400, it, bu
     };
     /* get the default file name based on current existing files*/
     std::string getDefaultBatchFilename(double a0, double a1, int n);
@@ -95,7 +95,7 @@ void Chi_curves::run() {
                 _b_params.iters,
                 _b_params.burn,
                 _b_params.trials,
-                _b_params.verbose
+                true
             );
         fprintf(
                 batches_log_file, 

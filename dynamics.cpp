@@ -3,6 +3,7 @@
 #define DEFAULT_STREAM 23u
 
 #include <random>
+#include <omp.h>
 #include "pcg_random/pcg_random.hpp"
 #include "dynamics.hpp"
 
@@ -413,16 +414,23 @@ Batch run_batch(
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel default(none) \
     shared(rates_table) \
-    firstprivate(trial_iters,trial_burn,trials,uniform) \
+    firstprivate(trial_iters,trial_burn,trials,uniform,verbose) \
     reduction(+:r,r2,psi,psi2,omega)
     {
+#pragma omp single
+        {
+            if (verbose) {
+                int thrdnum = omp_get_num_threads();
+                std::cout << "Batch running on " << thrdnum << " threads\n";
+            }
+        }
         pcg32 RNG(seed);
 
         States states;
         Deltas deltas;
         Rates rates;
         reset_system(states, deltas, rates, rates_table, RNG);
-    #pragma omp for
+#pragma omp for
         for (size_t i = 0; i < trials; i++) {
             pcg32 trial_rng(seed, i);
             initialize_states(states, RNG);

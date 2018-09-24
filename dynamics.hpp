@@ -47,7 +47,6 @@ struct batch_params {
     size_t trials;
     size_t iters;
     size_t burn;
-    bool verbose;
 };
 
 // data returned by a trial function

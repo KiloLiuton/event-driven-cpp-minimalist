@@ -2,7 +2,6 @@
 #define DEFAULT_SEED 42u
 #define DEFAULT_STREAM 23u
 
-#include <omp.h>
 #include <chrono>
 #include <ctime>
 #include <iostream>
@@ -13,7 +12,6 @@
 #include <algorithm>
 #include <random>
 #include <math.h>
-#include <map>
 #include "pcg_random/pcg_random.hpp"
 #include "dynamics.hpp"
 #include "misc.hpp"
