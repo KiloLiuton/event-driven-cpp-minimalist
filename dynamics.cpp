@@ -2,6 +2,7 @@
 #define DEFAULT_SEED 42u
 #define DEFAULT_STREAM 23u
 
+#include <iostream>
 #include <random>
 #include <omp.h>
 #include "pcg_random/pcg_random.hpp"
@@ -413,7 +414,7 @@ Batch run_batch(
     struct timespec start, finish;
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel default(none) \
-    shared(rates_table) \
+    shared(rates_table,std::cout) \
     firstprivate(trial_iters,trial_burn,trials,uniform,verbose) \
     reduction(+:r,r2,psi,psi2,omega)
     {
