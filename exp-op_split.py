@@ -13,17 +13,18 @@ def usage():
     print('--max_coupling [float] maximum coupling strength')
     print('--min_coupling [float] minimum coupling strength')
     print('--num_coupling [int] number of couplings per system size')
+    print('--prob         [float] rewiring probability')
     sys.exit()
 
 
 num_points = 8
-max_N = 100
-min_N = 30
+max_N = 500
+min_N = 100
 num_couplings = 8
 max_coupling = 1.8
 min_coupling = 1.35
-alpha = 0.34
-p = 0.0
+alpha = 0.12
+p = 0.000000
 
 # parse command line arguments
 for i, arg in enumerate(sys.argv):
@@ -42,6 +43,8 @@ for i, arg in enumerate(sys.argv):
             min_coupling = float(arg[i+1])
         if arg.startswith('--num_couplings'):
             num_couplings = int(arg[i+1])
+        if arg.startswith('--prob'):
+            p = float(arg[i+1])
     except(ValueError):
         usage()
 
