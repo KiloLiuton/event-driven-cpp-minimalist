@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import subprocess
 import numpy as np
 import sys
@@ -7,9 +8,10 @@ np.set_printoptions(precision=3)
 
 def usage():
     print('Usage: python %s args' % sys.argv[0])
+    print('--num_points   [int] number of system sizes')
     print('--max_N        [int] maximum syste size')
     print('--min_N        [int] minumum syste size')
-    print('--num_points   [int] number of system sizes')
+    print('--alpha        [float] K/N ratio')
     print('--max_coupling [float] maximum coupling strength')
     print('--min_coupling [float] minimum coupling strength')
     print('--num_coupling [int] number of couplings per system size')
@@ -31,24 +33,27 @@ for i, arg in enumerate(sys.argv):
     if arg.startswith('-h') or arg.startswith('--help'):
         usage()
     try:
-        if arg.startswith('--max_N'):
-            max_N = int(arg[i+1])
-        if arg.startswith('--min_N'):
-            min_N = int(arg[i+1])
         if arg.startswith('--num_points'):
-            num_points = int(arg[i+1])
+            num_points = int(sys.argv[i+1])
+        if arg.startswith('--max_N'):
+            max_N = int(sys.argv[i+1])
+        if arg.startswith('--min_N'):
+            min_N = int(sys.argv[i+1])
+        if arg.startswith('--alpha'):
+            alpha = float(sys.argv[i+1])
         if arg.startswith('--max_coupling'):
-            max_coupling = float(arg[i+1])
+            max_coupling = float(sys.argv[i+1])
         if arg.startswith('--min_coupling'):
-            min_coupling = float(arg[i+1])
+            min_coupling = float(sys.argv[i+1])
         if arg.startswith('--num_couplings'):
-            num_couplings = int(arg[i+1])
+            num_couplings = int(sys.argv[i+1])
         if arg.startswith('--prob'):
-            p = float(arg[i+1])
+            p = float(sys.argv[i+1])
     except(ValueError):
+        print("Some arguments were not recognized!")
         usage()
 
-N_list = np.flipud(1/np.linspace(1/max_N, 1/min_N, num_points)).tolist()
+N_list = np.flipud(1/np.linspace(1/max_N, 1/min_N, num_points)).astype(int).tolist()
 K_list = [int(alpha * n) for n in N_list]
 couplings = np.linspace(1.35, 1.8, num_couplings).tolist()
 
