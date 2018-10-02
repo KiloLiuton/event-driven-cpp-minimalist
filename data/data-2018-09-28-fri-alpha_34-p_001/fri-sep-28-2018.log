@@ -1,0 +1,86 @@
+# Output from the execution of the exp-op_split.py script on
+# commit 683fc689e61f03a3f1c7f13f6cced621e99ca755 in the master branch.
+
+Welcome, to Jurassick Park!
+N=2666 K=906 p=0 topology_seed=42
+
+Chi curves parameters:
+coupling_start: 1.35
+coupling_end:   1.8
+coupling_n:     8
+trials:         400
+iters:          210302
+burn:           210302
+filename:       batch-N-02666K-00906p-0_000000a-1_350000-1_800000-8_v0.dat
+Batch running on 8 threads
+[1\8] N=2666 K=906 p=0.000000 a=1.350000 Batch finished in: 545.818164s -- Thu Sep 27 12:03:00 2018
+Batch running on 8 threads
+[2\8] N=2666 K=906 p=0.000000 a=1.414286 Batch finished in: 508.878387s -- Thu Sep 27 12:11:29 2018
+Batch running on 8 threads
+[3\8] N=2666 K=906 p=0.000000 a=1.478571 Batch finished in: 488.678763s -- Thu Sep 27 12:19:37 2018
+Batch running on 8 threads
+[4\8] N=2666 K=906 p=0.000000 a=1.542857 Batch finished in: 479.627289s -- Thu Sep 27 12:27:37 2018
+Batch running on 8 threads
+[5\8] N=2666 K=906 p=0.000000 a=1.607143 Batch finished in: 469.077254s -- Thu Sep 27 12:35:26 2018
+Batch running on 8 threads
+[6\8] N=2666 K=906 p=0.000000 a=1.671429 Batch finished in: 459.265689s -- Thu Sep 27 12:43:05 2018
+Batch running on 8 threads
+[7\8] N=2666 K=906 p=0.000000 a=1.735714 Batch finished in: 439.331858s -- Thu Sep 27 12:50:25 2018
+Batch running on 8 threads
+[8\8] N=2666 K=906 p=0.000000 a=1.800000 Batch finished in: 426.714548s -- Thu Sep 27 12:57:31 2018
+./sim-04000-1360-0_000000-gseed_42 -b -bs 1.350000 -be 1.800000 -bn 8
+Welcome, to Jurassick Park!
+N=4000 K=1360 p=0 topology_seed=42
+
+Chi curves parameters:
+coupling_start: 1.35
+coupling_end:   1.8
+coupling_n:     8
+trials:         400
+iters:          331761
+burn:           331761
+filename:       batch-N-04000K-01360p-0_000000a-1_350000-1_800000-8_v0.dat
+Batch running on 8 threads
+[1\8] N=4000 K=1360 p=0.000000 a=1.350000 Batch finished in: 1273.823101s -- Thu Sep 27 13:18:46 2018
+Batch running on 8 threads
+[2\8] N=4000 K=1360 p=0.000000 a=1.414286 Batch finished in: 1271.617606s -- Thu Sep 27 13:39:57 2018
+Batch running on 8 threads
+[3\8] N=4000 K=1360 p=0.000000 a=1.478571 Batch finished in: 1265.438466s -- Thu Sep 27 14:01:03 2018
+Batch running on 8 threads
+[4\8] N=4000 K=1360 p=0.000000 a=1.542857 Batch finished in: 1246.085015s -- Thu Sep 27 14:21:49 2018
+Batch running on 8 threads
+[5\8] N=4000 K=1360 p=0.000000 a=1.607143 Batch finished in: 1198.991258s -- Thu Sep 27 14:41:48 2018
+Batch running on 8 threads
+[6\8] N=4000 K=1360 p=0.000000 a=1.671429 Batch finished in: 1156.050430s -- Thu Sep 27 15:01:04 2018
+Batch running on 8 threads
+[7\8] N=4000 K=1360 p=0.000000 a=1.735714 Batch finished in: 1133.362720s -- Thu Sep 27 15:19:57 2018
+Batch running on 8 threads
+[8\8] N=4000 K=1360 p=0.000000 a=1.800000 Batch finished in: 1092.711317s -- Thu Sep 27 15:38:10 2018
+./sim-08000-2720-0_000000-gseed_42 -b -bs 1.350000 -be 1.800000 -bn 8
+Welcome, to Jurassick Park!
+N=8000 K=2720 p=0 topology_seed=42
+
+Chi curves parameters:
+coupling_start: 1.35
+coupling_end:   1.8
+coupling_n:     8
+trials:         400
+iters:          718975
+burn:           718975
+filename:       batch-N-08000K-02720p-0_000000a-1_350000-1_800000-8_v0.dat
+Batch running on 8 threads
+[1\8] N=8000 K=2720 p=0.000000 a=1.350000 Batch finished in: 5826.510937s -- Thu Sep 27 17:15:17 2018
+Batch running on 8 threads
+[2\8] N=8000 K=2720 p=0.000000 a=1.414286 Batch finished in: 5801.451923s -- Thu Sep 27 18:51:58 2018
+Batch running on 8 threads
+[3\8] N=8000 K=2720 p=0.000000 a=1.478571 Batch finished in: 5777.859041s -- Thu Sep 27 20:28:16 2018
+Batch running on 8 threads
+[4\8] N=8000 K=2720 p=0.000000 a=1.542857 Batch finished in: 5649.204102s -- Thu Sep 27 22:02:25 2018
+Batch running on 8 threads
+[5\8] N=8000 K=2720 p=0.000000 a=1.607143 Batch finished in: 5429.805417s -- Thu Sep 27 23:32:55 2018
+Batch running on 8 threads
+[6\8] N=8000 K=2720 p=0.000000 a=1.671429 Batch finished in: 5282.637061s -- Fri Sep 28 01:00:58 2018
+Batch running on 8 threads
+[7\8] N=8000 K=2720 p=0.000000 a=1.735714 Batch finished in: 5053.183726s -- Fri Sep 28 02:25:11 2018
+Batch running on 8 threads
+[8\8] N=8000 K=2720 p=0.000000 a=1.800000 Batch finished in: 4907.344557s -- Fri Sep 28 03:46:58 2018

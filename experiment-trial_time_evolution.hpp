@@ -71,9 +71,6 @@ Time_evolution::Time_evolution(int argc, char** argv) {
         std::cerr << "Trial parameters not understood!\n"
                      "See -h for help.\n";
     }
-    std::cout << "new constructor called!\n"
-              << _t_params.iters << std::endl
-              << _t_params.burn << std::endl;
 }
 
 void Time_evolution::log_trial_to_file(
