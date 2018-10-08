@@ -53,8 +53,8 @@ for i, arg in enumerate(sys.argv):
         print("Some arguments were not recognized!")
         usage()
 
-N_list = np.flipud(1/np.linspace(1/max_N, 1/min_N, num_points)).astype(int).tolist()
-K_list = [int(alpha * n) for n in N_list]
+N_list = np.rint(1/np.linspace(1/min_N, 1/max_N, num_points))
+K_list = [int(round(alpha * n)) for n in N_list]
 couplings = np.linspace(1.35, 1.8, num_couplings).tolist()
 
 # compile files
