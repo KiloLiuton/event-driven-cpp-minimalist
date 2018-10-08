@@ -6,6 +6,13 @@ equilibrium-like properties near a phase transition.
 Here we present some code to perform a dynamical simulation of this model on
 arbitrary connection graphs between oscillators.
 
+## Requirements
+
+- python 3.7.0
+- python networkx
+- gcc 8.x or newer (might work on older versions but was not tested)
+- make
+
 ## How it works
 The connection graph between oscillators is defined during compile time.
 The current Makefile will automatically generate a ring-lattice topology with
