@@ -34,15 +34,15 @@ Generate a simulation file with `make N=X K=Y p=Z gseed=W`.
 Typing `make N=1000 K=15 p=0.001000 gseed=W` will generate a file named
 `sim-01000-0015-0_001000-gseed_42`, which can be run with the commands:
 
-    `./sim-01000-0015-0_001000-gseed_42 -t`
+    ./sim-01000-0015-0_001000-gseed_42 -t
 
 For the time evolution of a single realization of the simulation
 
-    `./sim-01000-0015-0_001000-gseed_42 -b`
+    ./sim-01000-0015-0_001000-gseed_42 -b
 
 For a simulation containing many **batches** of simulations and their respective
 order parameters, frequency, etc.
 
 To see more options of command line parameters run
 
-    `./sim-01000-0015-0_001000-gseed_42 --help`
+    ./sim-01000-0015-0_001000-gseed_42 --help
