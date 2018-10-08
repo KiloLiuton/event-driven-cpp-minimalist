@@ -9,7 +9,7 @@ arbitrary connection graphs between oscillators.
 ## How it works
 The connection graph between oscillators is defined during compile time.
 The current Makefile will automatically generate a ring-lattice topology with
-optional random rewiring (see the Watts Strogatz [model](https://www.nature.com/articles/30918 "Small World Networks")).
+optional random rewiring (see the Watts Strogatz model[[1]](https://www.nature.com/articles/30918 "Small World Networks")).
 
 If you just type `make` in the root folder, a basic simulation file will be
 generated for a network with a small number of nodes. In order to generate
