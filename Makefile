@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 ODIR = obj
 
 _OBJ = main.o dynamics.o
@@ -23,7 +24,8 @@ LDFLAGS = -lm -fopenmp
 all: $(prog)
 
 $(h):
-	./build_header.py $(N) $(K) $(p) $(s)
+	test -x build_header || { $(MAKE) headerprog;}
+	./build_header $(N) $(K) $(p) $(s)
 
 # For each .o file. '$@' = left of :, '$<' = first dependency (the .c file)
 $(ODIR)/%.o: %.cpp $(h)
@@ -36,6 +38,9 @@ $(prog): $(OBJ)
 # $compile_commands.json: Makefile
 # 	bear $(MAKE)
 
+headerprog:
+	$(CC) build_header.cpp -Wall -std=c++11 -O3 -march=native -o build_header
+
 .PHONY: clean
 clean:
-	rm -f $(prog) $(ODIR)/*.o
+	rm -f sim-* $(ODIR)/*.o
