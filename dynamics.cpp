@@ -413,6 +413,7 @@ Batch run_batch(
     initialize_rates_table(coupling, rates_table);
     struct timespec start, finish;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    omp_set_num_threads(8);
 #pragma omp parallel default(none) \
     shared(rates_table,std::cout) \
     firstprivate(trial_iters,trial_burn,trials,uniform,verbose) \
