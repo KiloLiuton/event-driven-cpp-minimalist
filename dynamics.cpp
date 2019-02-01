@@ -70,28 +70,34 @@ double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]) {
     return rates_table[idx];
 }
 
+// void initialize_states(States &local_states, pcg32 &RNG) {
+//     local_states.pop[0] = 0;
+//     local_states.pop[1] = 0;
+//     local_states.pop[2] = 0;
+//     for (uint16_t i = 0; i < N; i++) {
+//         uint8_t state = RNG(3);
+//         local_states.array[i] = state;
+//         switch (state) {
+//         case 0:
+//             local_states.pop[0]++;
+//             break;
+//         case 1:
+//             local_states.pop[1]++;
+//             break;
+//         case 2:
+//             local_states.pop[2]++;
+//             break;
+//         default:
+//             std::cout << "Error: Generated state out of range\n";
+//             break;
+//         }
+//     }
+// }
+
 void initialize_states(States &local_states, pcg32 &RNG) {
-    local_states.pop[0] = 0;
+    local_states.pop[0] = N;
     local_states.pop[1] = 0;
     local_states.pop[2] = 0;
-    for (uint16_t i = 0; i < N; i++) {
-        uint8_t state = RNG(3);
-        local_states.array[i] = state;
-        switch (state) {
-        case 0:
-            local_states.pop[0]++;
-            break;
-        case 1:
-            local_states.pop[1]++;
-            break;
-        case 2:
-            local_states.pop[2]++;
-            break;
-        default:
-            std::cout << "Error: Generated state out of range\n";
-            break;
-        }
-    }
 }
 
 void initialize_rates(
