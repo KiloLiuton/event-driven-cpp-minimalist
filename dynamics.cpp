@@ -98,6 +98,9 @@ void initialize_states(States &local_states, pcg32 &RNG) {
     local_states.pop[0] = N;
     local_states.pop[1] = 0;
     local_states.pop[2] = 0;
+    for (uint16_t i = 0; i < N; i++) {
+        local_states.array[i] = 0;
+    }
 }
 
 void initialize_rates(
