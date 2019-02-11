@@ -1,9 +1,0 @@
-*.dat
-sim-*
-[0-9]*
-batch*
-trial*
-build_header
-plot*
-utils.py
-__pycache__
