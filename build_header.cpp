@@ -161,7 +161,9 @@ int main(int argc, char** argv) {
                     }
                 }
             } else {
-                G.addedge(j, (j+i)%N);
+                if (j != (j+i)%N) {
+                    G.addedge(j, (j+i)%N);
+                }
             }
         }
     }
@@ -203,11 +205,11 @@ int main(int argc, char** argv) {
     }
     header << "};\n"
            << "constexpr uint16_t NEIGHBOR_LIST[] = {\n";
-    i = 0;
-    for (std::set<int> k : kers) {
-        for (int j : k) {
-            i++;
-            header << j << ((i == 2*N*K) ? "\n" : ",");
+    for (i=0; i<kers.size(); i++) {
+        unsigned int x = 1;
+        for (int j : kers[i]) {
+            header << j << (((i+1 == kers.size()) && (x == kers[i].size())) ? "\n" : ",");
+            x++;
         }
     }
     header << "};\n#endif\n";
