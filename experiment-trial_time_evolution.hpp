@@ -36,6 +36,7 @@ private:
     };
     bool _logphases;
     double _log_interval = (std::exp(2.0) + std::exp(-2.0))/(2*N);
+    std::string _initial_condition;
     std::string _filename;
     std::string getDefaultTrialFilename(double coupling);
 };
@@ -51,6 +52,16 @@ Time_evolution::Time_evolution(int argc, char** argv) {
             opt = getCmdOption(argv, argv+argc, "-tc");
             double a = stof(opt);
             _log_interval = (std::exp(a) + std::exp(-a))/(2*N);
+        }
+        if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
+            opt = getCmdOption(argv, argv+argc, "--initial-condition");
+            if (opt != "random" && opt != "uniform") {
+                printf("Invalid initial condition. Possible values are "
+                       "[random, uniform]\nDefaulting to \"random\".\n");
+                _initial_condition = "random";
+            } else {
+                _initial_condition = opt;
+            }
         }
         if (cmdOptionExists(argv, argv+argc, "-tc")) {
             opt = getCmdOption(argv, argv+argc, "-tc");
@@ -126,10 +137,10 @@ double Time_evolution::run() {
             trial_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
             "Dynamics_parameters: coupling=%f iters=%lu burn=%lu "
-            "seed=%lu stream=%lu\n",
+            "seed=%lu stream=%lu initial_condition=%s\n",
             N, K, p, TOPOLOGY_SEED,
             _t_params.coupling, _t_params.iters, _t_params.burn,
-            _t_params.seed, _t_params.stream
+            _t_params.seed, _t_params.stream, _initial_condition.c_str()
         );
     if (_logphases) {
         fprintf(trial_log_file, "[phases],time_elapsed\n");
@@ -146,7 +157,8 @@ double Time_evolution::run() {
             _t_params.coupling,
             local_states, local_deltas,
             local_rates, rates_table,
-            RNG
+            RNG, _initial_condition,
+            false
         );
     struct timespec start, finish;    // measure code run-times
     double elapsed;

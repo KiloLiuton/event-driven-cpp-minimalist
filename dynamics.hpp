@@ -68,20 +68,23 @@ void initialize_everything(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
         pcg32 &RNG,
-        bool verbose=false
+        std::string initial_condition,
+        bool verbose
     );
 /* reset the current lattice without changing the coupling strength */
 void reset_system(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
-        pcg32 &RNG
+        pcg32 &RNG,
+        std::string initial_condition
     );
 /* populates rates table with a given coupling value */
 void initialize_rates_table( double coupling, double rates_table[]);
 /* get the transition rate based on the current delta value of site i */
 double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]);
 /* populate a given states vector with a random configuration */
-void initialize_states(States &local_states, pcg32 &RNG);
+void initialize_random_states(States &local_states, pcg32 &RNG);
+void initialize_uniform_states(States &local_states, pcg32 &RNG);
 /* populates a given rates vector from the current rates table */
 void initialize_rates(
         Deltas &local_deltas,
@@ -140,6 +143,7 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown);
 Batch run_batch(
         double coupling,
         size_t trial_iters, size_t trial_burn, size_t trials,
+        std::string initial_condition,
         bool verbose
     );
 

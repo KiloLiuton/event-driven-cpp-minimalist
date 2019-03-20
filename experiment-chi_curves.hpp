@@ -25,11 +25,22 @@ private:
     /* get the default file name based on current existing files*/
     std::string getDefaultBatchFilename(double a0, double a1, int n);
     std::string _filename;
+    std::string _initial_condition;
 };
 
 Chi_curves::Chi_curves(int argc, char** argv) {
     try {
         std::string opt;
+        if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
+            opt = getCmdOption(argv, argv+argc, "--initial-condition");
+            if (opt != "random" && opt != "uniform") {
+                printf("Invalid initial condition. Possible values are "
+                       "[random, uniform]\nDefaulting to \"random\".\n");
+                _initial_condition = "random";
+            } else {
+                _initial_condition = opt;
+            }
+        }
         if (cmdOptionExists(argv, argv+argc, "-bs")) {
             opt = getCmdOption(argv, argv+argc, "-bs");
             _b_params.coupling_start = stof(opt);
@@ -74,11 +85,13 @@ void Chi_curves::run() {
     fprintf(
             batches_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
-            "Dynamics_parameters: trials=%lu iters=%lu burn=%lu\n"
+            "Dynamics_parameters: trials=%lu iters=%lu burn=%lu "
+            "initial_condition=%s\n"
             "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,processing_time,"
             "used_seed\n",
             N, K, p, TOPOLOGY_SEED,
-            _b_params.trials, _b_params.iters, _b_params.burn
+            _b_params.trials, _b_params.iters, _b_params.burn,
+            _initial_condition.c_str()
         );
 
     for (int i = 0; i < _b_params.n_batches; i++) {
@@ -95,6 +108,7 @@ void Chi_curves::run() {
                 _b_params.iters,
                 _b_params.burn,
                 _b_params.trials,
+                _initial_condition,
                 true
             );
         fprintf(

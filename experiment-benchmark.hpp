@@ -28,7 +28,7 @@ void Benchmark::run() {
     double rates_table[NUM_POSSIBLE_TRANSITIONS];
     pcg32 RNG(DEFAULT_SEED, DEFAULT_STREAM);
     Uniform uniform(0.0, 1.0);
-    initialize_everything(2.0, states, deltas, rates, rates_table, RNG);
+    initialize_everything(2.0, states, deltas, rates, rates_table, RNG, "random", false);
     for (int i=0; i<_iters; i++) {
         clock_gettime(CLOCK_MONOTONIC, &start);
         run_trial(

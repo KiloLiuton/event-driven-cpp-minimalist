@@ -14,7 +14,8 @@ void initialize_everything(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
         pcg32 &RNG,
-        bool verbose
+        std::string initial_condition="random",
+        bool verbose=false
     ) {
     if (verbose) {
         std::cout << "\nInitializing: "
@@ -27,7 +28,13 @@ void initialize_everything(
     if (verbose) {
         std::cout << "Rates table initialized!\n";
     }
-    initialize_states(local_states, RNG);
+    if (initial_condition == "random") {
+        initialize_random_states(local_states, RNG);
+    } else if (initial_condition == "uniform") {
+        initialize_uniform_states(local_states, RNG);
+    } else {
+        initialize_random_states(local_states, RNG);
+    }
     if (verbose) {
         std::cout << "States initialized!\n";
     }
@@ -44,9 +51,16 @@ void initialize_everything(
 void reset_system(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
-        pcg32 &RNG
+        pcg32 &RNG,
+        std::string initial_condition="random"
     ) {
-    initialize_states(local_states, RNG);
+    if (initial_condition == "random") {
+        initialize_random_states(local_states, RNG);
+    } else if (initial_condition == "uniform") {
+        initialize_uniform_states(local_states, RNG);
+    } else {
+        initialize_random_states(local_states, RNG);
+    }
     initialize_deltas(local_states, local_deltas);
     initialize_rates(local_deltas, local_rates, rates_table);
 }
@@ -70,37 +84,43 @@ double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]) {
     return rates_table[idx];
 }
 
-// void initialize_states(States &local_states, pcg32 &RNG) {
-//     local_states.pop[0] = 0;
-//     local_states.pop[1] = 0;
-//     local_states.pop[2] = 0;
-//     for (uint16_t i = 0; i < N; i++) {
-//         uint8_t state = RNG(3);
-//         local_states.array[i] = state;
-//         switch (state) {
-//         case 0:
-//             local_states.pop[0]++;
-//             break;
-//         case 1:
-//             local_states.pop[1]++;
-//             break;
-//         case 2:
-//             local_states.pop[2]++;
-//             break;
-//         default:
-//             std::cout << "Error: Generated state out of range\n";
-//             break;
-//         }
-//     }
-// }
-
-void initialize_states(States &local_states, pcg32 &RNG) {
-    local_states.pop[0] = N;
+void initialize_random_states(
+        States &local_states,
+        pcg32 &RNG
+    ) {
+    local_states.pop[0] = 0;
     local_states.pop[1] = 0;
     local_states.pop[2] = 0;
     for (uint16_t i = 0; i < N; i++) {
-        local_states.array[i] = 0;
+        uint8_t state = RNG(3);
+        local_states.array[i] = state;
+        switch (state) {
+        case 0:
+            local_states.pop[0]++;
+            break;
+        case 1:
+            local_states.pop[1]++;
+            break;
+        case 2:
+            local_states.pop[2]++;
+            break;
+        default:
+            std::cout << "Error: Generated state out of range\n";
+            break;
+        }
     }
+}
+
+void initialize_uniform_states(
+        States &local_states,
+        pcg32 &RNG
+    ) {
+        local_states.pop[0] = N;
+        local_states.pop[1] = 0;
+        local_states.pop[2] = 0;
+        for (uint16_t i = 0; i < N; i++) {
+            local_states.array[i] = 0;
+        }
 }
 
 void initialize_rates(
@@ -282,9 +302,16 @@ Trial run_no_omega_trial(
         size_t iters, size_t burn,
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
-        pcg32 &RNG, Uniform &uniform
+        pcg32 &RNG, Uniform &uniform,
+        std::string initial_condition="random"
     ) {
-    initialize_states(local_states, RNG);
+    if (initial_condition == "uniform") {
+        initialize_uniform_states(local_states, RNG);
+    } else if (initial_condition == "random") {
+        initialize_uniform_states(local_states, RNG);
+    } else {
+        initialize_random_states(local_states, RNG);
+    }
     initialize_deltas(local_states, local_deltas);
     initialize_rates(local_deltas, local_rates, rates_table);
     for (size_t i = 0; i < burn; i++) {
@@ -403,6 +430,7 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
 Batch run_batch(
             double coupling,
             size_t trial_iters, size_t trial_burn, size_t trials,
+            std::string initial_condition="random",
             bool verbose = false
         ) {
     struct timespec current_time;
@@ -424,7 +452,7 @@ Batch run_batch(
     clock_gettime(CLOCK_MONOTONIC, &start);
     omp_set_num_threads(8);
 #pragma omp parallel default(none) \
-    shared(rates_table,std::cout) \
+    shared(rates_table,initial_condition,std::cout) \
     firstprivate(trial_iters,trial_burn,trials,uniform,verbose) \
     reduction(+:r,r2,psi,psi2,omega)
     {
@@ -444,7 +472,13 @@ Batch run_batch(
 #pragma omp for
         for (size_t i = 0; i < trials; i++) {
             pcg32 trial_rng(seed, i);
-            initialize_states(states, RNG);
+            if (initial_condition == "random") {
+                initialize_random_states(states, RNG);
+            } else if (initial_condition == "uniform") {
+                initialize_uniform_states(states, RNG);
+            } else {
+                initialize_random_states(states, RNG);
+            }
             initialize_deltas(states, deltas);
             initialize_rates(deltas, rates, rates_table);
             Trial trial = run_trial(
