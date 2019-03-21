@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
         "  --initial-condition [random/uniform]    sets how to initialize the states array\n\n"
         "TRIAL TIME EVOLUTION parameters\n"
         "Invoke this experiment with the flag -t\n"
-        "--log-phases (bool)   [default false] if true, log all phases"
+        "--log-phases (bool)   [default false] if true, log all phases\n"
         "--log-interval (real) [default average of maximum and minimum rates]\n"
         "    minimum simulation time passed between two consecutive logs of the\n"
         "    phases. Ignored if --log-phases is false.\n"
