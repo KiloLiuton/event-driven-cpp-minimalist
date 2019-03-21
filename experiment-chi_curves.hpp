@@ -17,8 +17,8 @@ public:
     double get_burn()           { return _b_params.burn;           }
     std::string get_filename()  { return _filename;                }
 private:
-    size_t it = 10*N*log(N);
-    size_t bu = 10*N*log(N);
+    size_t it = 17*N*log(N);
+    size_t bu = 3*N*log(N);
     struct batch_params _b_params {
         1.0, 3.6, 20, 0, 400, it, bu
     };
