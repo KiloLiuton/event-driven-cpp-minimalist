@@ -26,6 +26,7 @@ public:
     int get_stream()           { return _t_params.stream;   }
     int get_iters()            { return _t_params.iters;    }
     int get_burn()             { return _t_params.burn;     }
+    std::string get_ic()       { return _initial_condition; }
     std::string get_filename() { return _filename;          }
 private:
     const size_t it = 17*N*log(N);
@@ -36,7 +37,7 @@ private:
     };
     bool _logphases;
     double _log_interval = (std::exp(2.0) + std::exp(-2.0))/(2*N);
-    std::string _initial_condition;
+    std::string _initial_condition = "random";
     std::string _filename;
     std::string getDefaultTrialFilename(double coupling);
 };
@@ -58,7 +59,6 @@ Time_evolution::Time_evolution(int argc, char** argv) {
             if (opt != "random" && opt != "uniform") {
                 printf("Invalid initial condition. Possible values are "
                        "[random, uniform]\nDefaulting to \"random\".\n");
-                _initial_condition = "random";
             } else {
                 _initial_condition = opt;
             }

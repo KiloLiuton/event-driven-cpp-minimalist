@@ -15,6 +15,7 @@ public:
     double get_trials()         { return _b_params.trials;         }
     double get_iters()          { return _b_params.iters;          }
     double get_burn()           { return _b_params.burn;           }
+    std::string get_ic()        { return _initial_condition;       }
     std::string get_filename()  { return _filename;                }
 private:
     size_t it = 17*N*log(N);
@@ -25,7 +26,7 @@ private:
     /* get the default file name based on current existing files*/
     std::string getDefaultBatchFilename(double a0, double a1, int n);
     std::string _filename;
-    std::string _initial_condition;
+    std::string _initial_condition = "random";
 };
 
 Chi_curves::Chi_curves(int argc, char** argv) {
@@ -36,7 +37,6 @@ Chi_curves::Chi_curves(int argc, char** argv) {
             if (opt != "random" && opt != "uniform") {
                 printf("Invalid initial condition. Possible values are "
                        "[random, uniform]\nDefaulting to \"random\".\n");
-                _initial_condition = "random";
             } else {
                 _initial_condition = opt;
             }

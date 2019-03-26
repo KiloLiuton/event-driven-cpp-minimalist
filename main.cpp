@@ -110,33 +110,33 @@ int main(int argc, char** argv) {
 
     // RUN A TRIAL AND LOG IT TO A FILE
     if (cmdOptionExists(argv, argv+argc, "-t")) {
-        Time_evolution experiment(argc, argv);
-        std::cout << "Logging trial to file: "
-                  << experiment.get_filename() << std::endl
-                  << "  Coupling: " << experiment.get_coupling() << std::endl
-                  << "  Seed: " << experiment.get_seed() << std::endl
-                  << "  Stream: " << experiment.get_stream() << std::endl
-                  << "  Iters: " << experiment.get_iters() << std::endl
-                  << "  Burn: " << experiment.get_burn() << std::endl;
-        experiment.run();
+        Time_evolution expt(argc, argv);
+        std::cout << "Logging trial to file: " << expt.get_filename() << '\n'
+                  << "  Coupling: " << expt.get_coupling() << '\n'
+                  << "  Seed: " << expt.get_seed() << '\n'
+                  << "  Stream: " << expt.get_stream() << '\n'
+                  << "  Iters: " << expt.get_iters() << '\n'
+                  << "  Burn: " << expt.get_burn() << '\n'
+                  << "  Initial condition: " << expt.get_ic() << '\n';
+        expt.run();
     }
 
     // RUN A BATCH OF TRIALS FOR EACH COUPLING STRENGTH
     if (cmdOptionExists(argv, argv+argc, "-b")) {
-        Chi_curves exp(argc, argv);
-        std::cout << "Chi curves parameters:\n"
-                  << "coupling_start: " << exp.get_coupling_start() << '\n'
-                  << "coupling_end:   " << exp.get_coupling_end() << '\n'
-                  << "coupling_n:     " << exp.get_num_batches() << '\n'
-                  << "trials:         " << exp.get_trials() << '\n'
-                  << "iters:          " << exp.get_iters() << '\n'
-                  << "burn:           " << exp.get_burn() << '\n'
-                  << "filename:       " << exp.get_filename() << '\n';
-        if (exp.get_num_batches() < 1) {
+        Chi_curves expb(argc, argv);
+        std::cout << "Logging batch to file: " << expb.get_filename() << '\n'
+                  << "  coupling_start: " << expb.get_coupling_start() << '\n'
+                  << "  coupling_end: " << expb.get_coupling_end() << '\n'
+                  << "  coupling_n: " << expb.get_num_batches() << '\n'
+                  << "  trials: " << expb.get_trials() << '\n'
+                  << "  iters: " << expb.get_iters() << '\n'
+                  << "  burn: " << expb.get_ic() << '\n'
+                  << "  initial condition: " << expb.get_burn() << '\n';
+        if (expb.get_num_batches() < 1) {
             std::cout << "Argument for -bn must be greater than 1!\n";
             return 0;
         }
-        exp.run();
+        expb.run();
     }
 
     // RUN A BENCHMARK
