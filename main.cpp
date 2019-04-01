@@ -130,8 +130,8 @@ int main(int argc, char** argv) {
                   << "  coupling_n: " << expb.get_num_batches() << '\n'
                   << "  trials: " << expb.get_trials() << '\n'
                   << "  iters: " << expb.get_iters() << '\n'
-                  << "  burn: " << expb.get_ic() << '\n'
-                  << "  initial condition: " << expb.get_burn() << '\n';
+                  << "  burn: " << expb.get_burn() << '\n'
+                  << "  initial condition: " << expb.get_ic() << '\n';
         if (expb.get_num_batches() < 1) {
             std::cout << "Argument for -bn must be greater than 1!\n";
             return 0;
