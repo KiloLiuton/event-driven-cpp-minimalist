@@ -430,8 +430,9 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
 Batch run_batch(
             double coupling,
             size_t trial_iters, size_t trial_burn, size_t trials,
-            std::string initial_condition="random",
-            bool verbose = false
+            std::string initial_condition,
+            int nthrds,
+            bool verbose
         ) {
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
@@ -450,7 +451,16 @@ Batch run_batch(
     initialize_rates_table(coupling, rates_table);
     struct timespec start, finish;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    omp_set_num_threads(8);
+    if (nthrds < 1) {
+#pragma omp parallel
+        {
+#pragma omp single
+            {
+                nthrds = omp_get_num_threads();
+            }
+        }
+    }
+    omp_set_num_threads(nthrds);
 #pragma omp parallel default(none) \
     shared(rates_table,initial_condition,std::cout) \
     firstprivate(trial_iters,trial_burn,trials,uniform,verbose) \

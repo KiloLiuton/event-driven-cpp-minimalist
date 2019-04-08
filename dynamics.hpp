@@ -144,6 +144,7 @@ Batch run_batch(
         double coupling,
         size_t trial_iters, size_t trial_burn, size_t trials,
         std::string initial_condition,
+        int nthrds,
         bool verbose
     );
 

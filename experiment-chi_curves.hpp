@@ -27,6 +27,7 @@ private:
     std::string getDefaultBatchFilename(double a0, double a1, int n);
     std::string _filename;
     std::string _initial_condition = "random";
+    int _nthrds = -1;  // -1 -> let run_batch decide the number of threads
 };
 
 Chi_curves::Chi_curves(int argc, char** argv) {
@@ -74,6 +75,10 @@ Chi_curves::Chi_curves(int argc, char** argv) {
                     _b_params.n_batches
                 );
         }
+        if (cmdOptionExists(argv, argv+argc, "-nt")) {
+            opt = getCmdOption(argv, argv+argc, "-nt");
+            _nthrds = stoi(opt);
+        }
     } catch(...) {
         std::cerr << "Batch parameters not understood!\n"
                      "See -h for help.\n";
@@ -109,6 +114,7 @@ void Chi_curves::run() {
                 _b_params.burn,
                 _b_params.trials,
                 _initial_condition,
+                _nthrds,
                 true
             );
         fprintf(
