@@ -118,7 +118,8 @@ int main(int argc, char** argv) {
                   << "  Iters: " << expt.get_iters() << '\n'
                   << "  Burn: " << expt.get_burn() << '\n'
                   << "  Initial condition: " << expt.get_ic() << '\n';
-        expt.run();
+        double runtime = expt.run();
+        std::cout << "Runtime: " << runtime << "\n";
     }
 
     // RUN A BATCH OF TRIALS FOR EACH COUPLING STRENGTH
