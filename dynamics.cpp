@@ -268,24 +268,24 @@ uint16_t transitionIndex(
         Rates &local_rates,
         pcg32 &RNG, Uniform &uniform
     ) {
-    double partialRate = 0;
-    double g = 0;
+    // This function will sample the discrete distribution defined by the array
+    // of transition rates.
     double rn = uniform(RNG);
     double randomRate = rn * local_rates.sum;
+    // If for any reason the current sum is greater than the actual sum, the
+    // initial value will be returned, which in this case should be the last
+    // site and so we set returnid to N-1.
+    uint16_t returnid = N - 1;
+    bool found = false;
+    local_rates.sum = 0;
     for (uint16_t id = 0; id < N; ++id) {
-        g = local_rates.array[id];
-        partialRate += g;
-        if (partialRate > randomRate) {
-            return id;
+        local_rates.sum += local_rates.array[id];
+        if (!found && local_rates.sum > randomRate) {
+            returnid = id;
+            found = true;
         }
     }
-    double actualRate =  0;
-    for (uint16_t i = 0; i < N; i++) {
-        actualRate += local_rates.array[i];
-    }
-    std::cout << "Rates refreshed due to Overflow.\n";
-
-    return N - 1;
+    return returnid;
 }
 
 uint16_t transition_site(
