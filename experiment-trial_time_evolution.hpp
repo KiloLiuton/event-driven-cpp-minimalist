@@ -37,7 +37,7 @@ private:
     };
     bool _logphases;
     double _log_interval = (std::exp(2.0) + std::exp(-2.0))/(2*N);
-    std::string _initial_condition = "random";
+    std::string _initial_condition = "uniform";
     std::string _filename;
     std::string getDefaultTrialFilename(double coupling);
 };

@@ -26,7 +26,7 @@ private:
     /* get the default file name based on current existing files*/
     std::string getDefaultBatchFilename(double a0, double a1, int n);
     std::string _filename;
-    std::string _initial_condition = "random";
+    std::string _initial_condition = "uniform";
 };
 
 Chi_curves::Chi_curves(int argc, char** argv) {
