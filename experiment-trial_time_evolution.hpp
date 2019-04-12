@@ -8,6 +8,20 @@
 #include "dynamics.hpp"
 #include "misc.hpp"
 
+int16_t median(size_t n0, size_t n1, size_t n2)
+{
+    // return the phase value of the majority, selecting randomly on ties.
+    if (n0 > n2 && n0 > n1)       return 0;
+    if (n1 > n2 && n1 > n0)       return 1;
+    if (n2 > n0 && n2 > n1)       return 2;
+    if ((n0 == n1) && (n1 == n2)) return rand() % 3;
+    if (n0 == n1)                 return rand() % 2;
+    if (n1 == n2)                 return rand() % 2 + 1;
+    if (n0 == n2)                 return (rand() % 2)? 0 : 2;
+    std::cout << "oops, this shouldn't have happened\n";
+    return 0;
+}
+
 class Time_evolution {
 public:
     Time_evolution(int argc, char** argv);
@@ -35,7 +49,7 @@ private:
         2.0, DEFAULT_SEED, DEFAULT_STREAM,
         it, bu
     };
-    bool _logphases;
+    size_t _logphases;
     double _log_interval = (std::exp(2.0) + std::exp(-2.0))/(2*N);
     std::string _initial_condition = "uniform";
     std::string _filename;
@@ -45,7 +59,14 @@ private:
 Time_evolution::Time_evolution(int argc, char** argv) {
     try {
         std::string opt;
-        _logphases = cmdOptionExists(argv, argv+argc, "--log-phases");
+        if (cmdOptionExists(argv, argv+argc, "--log-phases")) {
+            opt = getCmdOption(argv, argv+argc, "--log-phases");
+            if (opt.size()) {
+                _logphases = stoi(opt);
+            } else {
+                _logphases = 1;
+            }
+        }
         if (cmdOptionExists(argv, argv+argc, "--log-interval")) {
             opt = getCmdOption(argv, argv+argc, "--log-interval");
             _log_interval = stof(opt);
@@ -58,7 +79,7 @@ Time_evolution::Time_evolution(int argc, char** argv) {
             opt = getCmdOption(argv, argv+argc, "--initial-condition");
             if (opt != "random" && opt != "uniform") {
                 printf("Invalid initial condition. Possible values are "
-                       "[random, uniform]\nDefaulting to \"random\".\n");
+                       "[random, uniform]\nDefaulting to \"uniform\".\n");
             } else {
                 _initial_condition = opt;
             }
@@ -106,24 +127,40 @@ void Time_evolution::log_trial_to_file(
         ) {
     size_t total_iters = iters + burn;
     double time_elapsed = 0;
+    double dt, r, psi;
     double log_counter = std::numeric_limits<float>::infinity();
+    size_t j;
+    size_t compress_counter, n0, n1, n2;
     for (size_t i = 0; i < total_iters; ++i) {
-        double dt = 1.0 / rates.sum;
+        dt = 1.0 / rates.sum;
         time_elapsed += dt;
-        log_counter += dt;
         transition_site(states, deltas, rates, rates_table, RNG, uniform);
-
         if (_logphases) {
+            log_counter += dt;
             if (log_counter >= _log_interval) {
                 log_counter = 0;
-                for (size_t i=0; i<N-1; i++) {
-                    fprintf(log_file, "%d,", states.array[i]);
+                compress_counter = 0;
+                n0 = n1 = n2 = 0;
+                for (j=0; j<N; j++) {
+                    if (states.array[j] == 0)      n0++;
+                    else if (states.array[j] == 1) n1++;
+                    else if (states.array[j] == 2) n2++;
+                    compress_counter++;
+                    if (compress_counter == _logphases) {
+                        fprintf(log_file, "%d,", median(n0, n1, n2));
+                        n0 = n1 = n2 = 0;
+                        compress_counter = 0;
+                    }
                 }
-                fprintf(log_file, "%d,%f\n", states.array[N-1], time_elapsed);
+                if (compress_counter > 0) {
+                    fprintf(log_file, "%d,%f\n", median(n0, n1, n2), time_elapsed);
+                } else {
+                    fprintf(log_file, "%f\n", time_elapsed);
+                }
             }
         } else {
-            double r = get_squared_op(states);
-            double psi = get_psi_op(states, rates);
+            r = get_squared_op(states);
+            psi = get_psi_op(states, rates);
             fprintf(log_file,
                     "%16.16f,%16.16f,%d,%d,%f,%f\n",
                     r, psi, states.pop[0], states.pop[1], time_elapsed, dt);
@@ -178,28 +215,28 @@ double Time_evolution::run() {
 }
 
 std::string Time_evolution::getDefaultTrialFilename(double coupling) {
-    std::ostringstream sstream;
-    sstream.fill('0');
-    sstream.precision(6);
+    std::ostringstream prefixstream;
+    prefixstream.fill('0');
+    prefixstream.precision(6);
     if (_logphases) {
-        sstream << "phasetrial-N-";
+        prefixstream << "phasetrial-N-";
     } else {
-        sstream << "trial-N-";
+        prefixstream << "trial-N-";
     }
-    sstream.width(5);
-    sstream << N << "K-";
-    sstream.width(5);
-    sstream << K;
-    sstream << "p-";
-    sstream << std::fixed << p << "a-" << coupling;
-    std::string prefix = sstream.str();
+    prefixstream.width(5);
+    prefixstream << N << "K-";
+    prefixstream.width(5);
+    prefixstream << K;
+    prefixstream << "p-";
+    prefixstream << std::fixed << p << "a-" << coupling;
+    std::string prefix = prefixstream.str();
     prefix = replaceAll(prefix, ".", "_");
     std::ostringstream version;
     version << "_v0.dat";
     std::string fname = prefix + version.str();
     int i = 1;
     while (std::ifstream(fname)) {
-        version.str(std::string());
+        version.str(std::string());  // clear string stream
         version << "_v" << i << ".dat";
         fname = prefix + version.str();
         i++;
