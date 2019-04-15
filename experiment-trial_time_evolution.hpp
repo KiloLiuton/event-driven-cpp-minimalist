@@ -8,7 +8,7 @@
 #include "dynamics.hpp"
 #include "misc.hpp"
 
-int16_t median(size_t n0, size_t n1, size_t n2)
+uint8_t median(size_t n0, size_t n1, size_t n2)
 {
     // return the phase value of the majority, selecting randomly on ties.
     if (n0 > n2 && n0 > n1)       return 0;
@@ -43,47 +43,24 @@ public:
     std::string get_ic()       { return _initial_condition; }
     std::string get_filename() { return _filename;          }
 private:
+    std::string getDefaultTrialFilename(double coupling);
+    void compress_states_and_write_to_file(FILE* file, uint8_t* states, double t);
     const size_t it = 17*N*log(N);
     const size_t bu = 3*N*log(N);
     struct trial_params _t_params {
         2.0, DEFAULT_SEED, DEFAULT_STREAM,
         it, bu
     };
-    size_t _logphases;
-    double _log_interval = (std::exp(2.0) + std::exp(-2.0))/(2*N);
+    size_t _logphases = 0;
     std::string _initial_condition = "uniform";
+    double _log_interval;
     std::string _filename;
-    std::string getDefaultTrialFilename(double coupling);
 };
 
 Time_evolution::Time_evolution(int argc, char** argv) {
+    std::string opt;
     try {
-        std::string opt;
-        if (cmdOptionExists(argv, argv+argc, "--log-phases")) {
-            opt = getCmdOption(argv, argv+argc, "--log-phases");
-            if (opt.size()) {
-                _logphases = stoi(opt);
-            } else {
-                _logphases = 1;
-            }
-        }
-        if (cmdOptionExists(argv, argv+argc, "--log-interval")) {
-            opt = getCmdOption(argv, argv+argc, "--log-interval");
-            _log_interval = stof(opt);
-        } else if (cmdOptionExists(argv, argv+argc, "-tc")){
-            opt = getCmdOption(argv, argv+argc, "-tc");
-            double a = stof(opt);
-            _log_interval = (std::exp(a) + std::exp(-a))/(2*N);
-        }
-        if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
-            opt = getCmdOption(argv, argv+argc, "--initial-condition");
-            if (opt != "random" && opt != "uniform") {
-                printf("Invalid initial condition. Possible values are "
-                       "[random, uniform]\nDefaulting to \"uniform\".\n");
-            } else {
-                _initial_condition = opt;
-            }
-        }
+        // coupling has to be first since other default values depend on it
         if (cmdOptionExists(argv, argv+argc, "-tc")) {
             opt = getCmdOption(argv, argv+argc, "-tc");
             _t_params.coupling = stof(opt);
@@ -104,12 +81,30 @@ Time_evolution::Time_evolution(int argc, char** argv) {
             opt = getCmdOption(argv, argv+argc, "-tb");
             _t_params.burn = stoi(opt);
         }
+        if (cmdOptionExists(argv, argv+argc, "--log-phases")) {
+            opt = getCmdOption(argv, argv+argc, "--log-phases");
+            if (opt.size()) {
+                _logphases = stoi(opt);
+            } else {
+                _logphases = 1;
+            }
+        }
+        if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
+            opt = getCmdOption(argv, argv+argc, "--initial-condition");
+            if (opt != "random" && opt != "uniform") {
+                printf("Invalid initial condition. Possible values are "
+                       "[random, uniform]\nDefaulting to \"uniform\".\n");
+            }
+        }
+        if (cmdOptionExists(argv, argv+argc, "--log-interval")) {
+            opt = getCmdOption(argv, argv+argc, "--log-interval");
+            _log_interval = stof(opt);
+        } else {
+            _log_interval = (std::exp(_t_params.coupling) + std::exp(-_t_params.coupling))/(2*N);
+        }
         if (cmdOptionExists(argv, argv+argc, "-tf")) {
             opt = getCmdOption(argv, argv+argc, "-tf");
             _filename = opt;
-        } else if (cmdOptionExists(argv, argv+argc, "-tc")) {
-            opt = getCmdOption(argv, argv+argc, "-tc");
-            _filename = getDefaultTrialFilename(stof(opt));
         } else {
             _filename = getDefaultTrialFilename(_t_params.coupling);
         }
@@ -130,7 +125,6 @@ void Time_evolution::log_trial_to_file(
     double dt, r, psi;
     double log_counter = std::numeric_limits<float>::infinity();
     size_t j;
-    size_t compress_counter, n0, n1, n2;
     for (size_t i = 0; i < total_iters; ++i) {
         dt = 1.0 / rates.sum;
         time_elapsed += dt;
@@ -139,22 +133,12 @@ void Time_evolution::log_trial_to_file(
             log_counter += dt;
             if (log_counter >= _log_interval) {
                 log_counter = 0;
-                compress_counter = 0;
-                n0 = n1 = n2 = 0;
-                for (j=0; j<N; j++) {
-                    if (states.array[j] == 0)      n0++;
-                    else if (states.array[j] == 1) n1++;
-                    else if (states.array[j] == 2) n2++;
-                    compress_counter++;
-                    if (compress_counter == _logphases) {
-                        fprintf(log_file, "%d,", median(n0, n1, n2));
-                        n0 = n1 = n2 = 0;
-                        compress_counter = 0;
-                    }
-                }
-                if (compress_counter > 0) {
-                    fprintf(log_file, "%d,%f\n", median(n0, n1, n2), time_elapsed);
+                if (_logphases > 1) {
+                    compress_states_and_write_to_file(log_file, states.array, time_elapsed);
                 } else {
+                    for (j=0; j<N; j++) {
+                        fprintf(log_file, "%d,", states.array[j]);
+                    }
                     fprintf(log_file, "%f\n", time_elapsed);
                 }
             }
@@ -242,4 +226,28 @@ std::string Time_evolution::getDefaultTrialFilename(double coupling) {
         i++;
     }
     return fname;
+}
+
+void Time_evolution::compress_states_and_write_to_file(FILE* file, uint8_t* states, double t)
+{
+    size_t compress_counter, n0, n1, n2;
+    size_t j;
+    compress_counter = 0;
+    n0 = n1 = n2 = 0;
+    for (j=0; j<N; j++) {
+        if (states[j] == 0)      n0++;
+        else if (states[j] == 1) n1++;
+        else if (states[j] == 2) n2++;
+        compress_counter++;
+        if (compress_counter == _logphases) {
+            fprintf(file, "%d,", median(n0, n1, n2));
+            n0 = n1 = n2 = 0;
+            compress_counter = 0;
+        }
+    }
+    if (compress_counter > 0) {
+        fprintf(file, "%d,%f\n", median(n0, n1, n2), t);
+    } else {
+        fprintf(file, "%f\n", t);
+    }
 }
