@@ -91,9 +91,14 @@ Time_evolution::Time_evolution(int argc, char** argv) {
         }
         if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
             opt = getCmdOption(argv, argv+argc, "--initial-condition");
-            if (opt != "random" && opt != "uniform") {
-                printf("Invalid initial condition. Possible values are "
-                       "[random, uniform]\nDefaulting to \"uniform\".\n");
+            if (opt == "random") {
+                _initial_condition = "random";
+            } else if (opt == "uniform") {
+                _initial_condition = "uniform";
+            } else {
+                std::cout << "Invalid initial condition. Possible values are"
+                    " [random, uniform]\nDefaulting to \"" << _initial_condition
+                    << "\".\n";
             }
         }
         if (cmdOptionExists(argv, argv+argc, "--log-interval")) {
