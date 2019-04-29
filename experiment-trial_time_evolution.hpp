@@ -35,13 +35,17 @@ public:
             FILE* log_file
         );
     double run();
+    void print_headers();
     double get_coupling()      { return _t_params.coupling; }
     int get_seed()             { return _t_params.seed;     }
     int get_stream()           { return _t_params.stream;   }
     int get_iters()            { return _t_params.iters;    }
     int get_burn()             { return _t_params.burn;     }
     std::string get_ic()       { return _initial_condition; }
+    double get_timeinterval()  { return _loginterval;       }
+    double get_xinterval()     { return _logphases;         }
     std::string get_filename() { return _filename;          }
+    bool get_discardburn()     { return _discardburn;       }
 private:
     std::string getDefaultTrialFilename(double coupling);
     void compress_states_and_write_to_file(FILE* file, uint8_t* states, double t);
@@ -53,8 +57,9 @@ private:
     };
     size_t _logphases = 0;
     std::string _initial_condition = "uniform";
-    double _log_interval;
+    double _loginterval;
     std::string _filename;
+    bool _discardburn = false;
 };
 
 Time_evolution::Time_evolution(int argc, char** argv) {
@@ -95,6 +100,8 @@ Time_evolution::Time_evolution(int argc, char** argv) {
                 _initial_condition = "random";
             } else if (opt == "uniform") {
                 _initial_condition = "uniform";
+            } else if (opt.substr(0, 4) == "wave") {
+                _initial_condition = opt;
             } else {
                 std::cout << "Invalid initial condition. Possible values are"
                     " [random, uniform]\nDefaulting to \"" << _initial_condition
@@ -103,15 +110,22 @@ Time_evolution::Time_evolution(int argc, char** argv) {
         }
         if (cmdOptionExists(argv, argv+argc, "--log-interval")) {
             opt = getCmdOption(argv, argv+argc, "--log-interval");
-            _log_interval = stof(opt);
+            _loginterval = stof(opt);
         } else {
-            _log_interval = (std::exp(_t_params.coupling) + std::exp(-_t_params.coupling))/(2*N);
+            // double dtmax = N / std::exp(-_t_params.coupling);
+            double maxrate = std::exp(std::abs(_t_params.coupling));
+            double dtmin = 1.0 / (N * maxrate);
+            _loginterval = dtmin * 10;
         }
         if (cmdOptionExists(argv, argv+argc, "-tf")) {
             opt = getCmdOption(argv, argv+argc, "-tf");
             _filename = opt;
         } else {
             _filename = getDefaultTrialFilename(_t_params.coupling);
+        }
+        if (cmdOptionExists(argv, argv+argc, "--discard-burn")) {
+            opt = getCmdOption(argv, argv+argc, "--discard-burn");
+            _discardburn = stoi(opt);
         }
     } catch(...) {
         std::cerr << "Trial parameters not understood!\n"
@@ -125,34 +139,45 @@ void Time_evolution::log_trial_to_file(
             pcg32 &RNG, Uniform &uniform,
             FILE* log_file
         ) {
-    size_t total_iters = iters + burn;
     double time_elapsed = 0;
-    double dt, r, psi;
+    double dt;
+    size_t total_iters = iters;
+    if (_discardburn) {
+        for (size_t i=0; i<burn; i++) {
+            dt = 1.0 / rates.sum;
+            time_elapsed += dt;
+            transition_site(states, deltas, rates, rates_table, RNG, uniform);
+        }
+    } else {
+        total_iters = burn + iters;
+    }
+    double r, psi;
     double log_counter = std::numeric_limits<float>::infinity();
-    size_t j;
-    for (size_t i = 0; i < total_iters; ++i) {
-        dt = 1.0 / rates.sum;
-        time_elapsed += dt;
-        transition_site(states, deltas, rates, rates_table, RNG, uniform);
-        if (_logphases) {
+    if (_logphases) {
+        for (size_t i=0; i<total_iters; i++) {
+            dt = 1.0 / rates.sum;
+            time_elapsed += dt;
+            transition_site(states, deltas, rates, rates_table, RNG, uniform);
             log_counter += dt;
-            if (log_counter >= _log_interval) {
+            if (log_counter >= _loginterval) {
+                compress_states_and_write_to_file(log_file, states.array, time_elapsed);
                 log_counter = 0;
-                if (_logphases > 1) {
-                    compress_states_and_write_to_file(log_file, states.array, time_elapsed);
-                } else {
-                    for (j=0; j<N; j++) {
-                        fprintf(log_file, "%d,", states.array[j]);
-                    }
-                    fprintf(log_file, "%f\n", time_elapsed);
-                }
             }
-        } else {
-            r = get_squared_op(states);
-            psi = get_psi_op(states, rates);
-            fprintf(log_file,
-                    "%16.16f,%16.16f,%d,%d,%f,%f\n",
-                    r, psi, states.pop[0], states.pop[1], time_elapsed, dt);
+        }
+    } else {
+        for (size_t i=0; i<total_iters; i++) {
+            dt = 1.0 / rates.sum;
+            time_elapsed += dt;
+            transition_site(states, deltas, rates, rates_table, RNG, uniform);
+            log_counter += dt;
+            if (log_counter >= _loginterval) {
+                r = get_squared_op(states);
+                psi = get_psi_op(states, rates);
+                fprintf(log_file,
+                        "%16.16f,%16.16f,%d,%d,%f,%f\n",
+                        r, psi, states.pop[0], states.pop[1], time_elapsed, dt);
+                log_counter = 0;
+            }
         }
     }
 }
@@ -162,11 +187,12 @@ double Time_evolution::run() {
     fprintf(
             trial_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
-            "Dynamics_parameters: coupling=%f iters=%lu burn=%lu "
-            "seed=%lu stream=%lu initial_condition=%s\n",
+            "Dynamics_parameters: coupling=%f iters=%lu burn=%lu"
+            " seed=%lu stream=%lu initial_condition=%s discard_burn=%d\n",
             N, K, p, TOPOLOGY_SEED,
             _t_params.coupling, _t_params.iters, _t_params.burn,
-            _t_params.seed, _t_params.stream, _initial_condition.c_str()
+            _t_params.seed, _t_params.stream, _initial_condition.c_str(),
+            _discardburn
         );
     if (_logphases) {
         fprintf(trial_log_file, "[phases],time_elapsed\n");
@@ -203,6 +229,23 @@ double Time_evolution::run() {
     return elapsed;
 }
 
+void Time_evolution::print_headers() {
+    std::cout
+        << "Logging trial to file: " << get_filename() << '\n'
+        << "  Coupling: " << get_coupling() << '\n'
+        << "  Seed: " << get_seed() << '\n'
+        << "  Stream: " << get_stream() << '\n'
+        << "  Iters: " << get_iters() << '\n'
+        << "  Burn: " << get_burn() << '\n'
+        << "  Discard burn: " << get_discardburn() << '\n'
+        << "  Initial condition: " << get_ic() << '\n'
+        << "  Log time interval: " << get_timeinterval() << '\n';
+    if (get_xinterval()) {
+        std::cout
+            << "  Log phase space interval: " << get_xinterval() << '\n';
+    }
+}
+
 std::string Time_evolution::getDefaultTrialFilename(double coupling) {
     std::ostringstream prefixstream;
     prefixstream.fill('0');
@@ -235,24 +278,31 @@ std::string Time_evolution::getDefaultTrialFilename(double coupling) {
 
 void Time_evolution::compress_states_and_write_to_file(FILE* file, uint8_t* states, double t)
 {
-    size_t compress_counter, n0, n1, n2;
     size_t j;
-    compress_counter = 0;
-    n0 = n1 = n2 = 0;
-    for (j=0; j<N; j++) {
-        if (states[j] == 0)      n0++;
-        else if (states[j] == 1) n1++;
-        else if (states[j] == 2) n2++;
-        compress_counter++;
-        if (compress_counter == _logphases) {
-            fprintf(file, "%d,", median(n0, n1, n2));
-            n0 = n1 = n2 = 0;
-            compress_counter = 0;
+    if (_logphases > 1) {
+        size_t compress_counter, n0, n1, n2;
+        compress_counter = 0;
+        n0 = n1 = n2 = 0;
+        for (j=0; j<N; j++) {
+            if (states[j] == 0)      n0++;
+            else if (states[j] == 1) n1++;
+            else if (states[j] == 2) n2++;
+            compress_counter++;
+            if (compress_counter == _logphases) {
+                fprintf(file, "%d,", median(n0, n1, n2));
+                n0 = n1 = n2 = 0;
+                compress_counter = 0;
+            }
         }
-    }
-    if (compress_counter > 0) {
-        fprintf(file, "%d,%f\n", median(n0, n1, n2), t);
-    } else {
+        if (compress_counter > 0) {
+            fprintf(file, "%d,%f\n", median(n0, n1, n2), t);
+        } else {
+            fprintf(file, "%f\n", t);
+        }
+    } else if (_logphases == 1) {
+        for (j=0; j<N; j++) {
+            fprintf(file, "%d,", states[j]);
+        }
         fprintf(file, "%f\n", t);
     }
 }

@@ -3,6 +3,7 @@
 #define DEFAULT_STREAM 23u
 
 #include <iostream>
+#include <string>
 #include <random>
 #include <omp.h>
 #include "pcg_random/pcg_random.hpp"
@@ -14,7 +15,7 @@ void initialize_everything(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
         pcg32 &RNG,
-        std::string initial_condition="random",
+        std::string initial_condition,
         bool verbose=false
     ) {
     if (verbose) {
@@ -31,9 +32,11 @@ void initialize_everything(
     if (initial_condition == "random") {
         initialize_random_states(local_states, RNG);
     } else if (initial_condition == "uniform") {
-        initialize_uniform_states(local_states, RNG);
+        initialize_uniform_states(local_states);
+    } else if (initial_condition.substr(0, 4) == "wave") {
+        initialize_wave_states(local_states, std::stoi(initial_condition.substr(4)));
     } else {
-        initialize_random_states(local_states, RNG);
+        std::cout << "Initial condition " << initial_condition << " not understood.\n";
     }
     if (verbose) {
         std::cout << "States initialized!\n";
@@ -57,9 +60,9 @@ void reset_system(
     if (initial_condition == "random") {
         initialize_random_states(local_states, RNG);
     } else if (initial_condition == "uniform") {
-        initialize_uniform_states(local_states, RNG);
-    } else {
-        initialize_random_states(local_states, RNG);
+        initialize_uniform_states(local_states);
+    } else if (initial_condition.substr(0, 4) == "wave") {
+        initialize_wave_states(local_states, std::stoi(initial_condition.substr(4)));
     }
     initialize_deltas(local_states, local_deltas);
     initialize_rates(local_deltas, local_rates, rates_table);
@@ -112,8 +115,7 @@ void initialize_random_states(
 }
 
 void initialize_uniform_states(
-        States &local_states,
-        pcg32 &RNG
+        States &local_states
     ) {
         local_states.pop[0] = N;
         local_states.pop[1] = 0;
@@ -121,6 +123,26 @@ void initialize_uniform_states(
         for (uint16_t i = 0; i < N; i++) {
             local_states.array[i] = 0;
         }
+}
+
+void initialize_wave_states(States &local_states, int num_bins) {
+    local_states.pop[0] = 0;
+    local_states.pop[1] = 0;
+    local_states.pop[2] = 0;
+    uint8_t s = 0;
+    int count = 0;
+    int chunk = N / num_bins;
+    for (int i=0; i<N; i++) {
+        local_states.array[i] = s;
+        if (s == 0) local_states.pop[0]++;
+        if (s == 1) local_states.pop[1]++;
+        if (s == 2) local_states.pop[2]++;
+        count++;
+        if (count > chunk) {
+            count = 0;
+            s = (s+1) % 3;
+        }
+    }
 }
 
 void initialize_rates(
@@ -306,11 +328,11 @@ Trial run_no_omega_trial(
         std::string initial_condition="random"
     ) {
     if (initial_condition == "uniform") {
-        initialize_uniform_states(local_states, RNG);
+        initialize_uniform_states(local_states);
     } else if (initial_condition == "random") {
-        initialize_uniform_states(local_states, RNG);
-    } else {
         initialize_random_states(local_states, RNG);
+    } else if (initial_condition.substr(0, 4) == "wave") {
+        initialize_wave_states(local_states, std::stoi(initial_condition.substr(4)));
     }
     initialize_deltas(local_states, local_deltas);
     initialize_rates(local_deltas, local_rates, rates_table);
@@ -475,7 +497,7 @@ Batch run_batch(
             if (initial_condition == "random") {
                 initialize_random_states(states, RNG);
             } else if (initial_condition == "uniform") {
-                initialize_uniform_states(states, RNG);
+                initialize_uniform_states(states);
             } else {
                 initialize_random_states(states, RNG);
             }

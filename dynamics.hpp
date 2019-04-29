@@ -84,7 +84,8 @@ void initialize_rates_table( double coupling, double rates_table[]);
 double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]);
 /* populate a given states vector with a random configuration */
 void initialize_random_states(States &local_states, pcg32 &RNG);
-void initialize_uniform_states(States &local_states, pcg32 &RNG);
+void initialize_uniform_states(States &local_states);
+void initialize_wave_states(States &local_states, int num_bins);
 /* populates a given rates vector from the current rates table */
 void initialize_rates(
         Deltas &local_deltas,
