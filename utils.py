@@ -29,31 +29,18 @@ def load_batch(filename):
     Returns:
     dict(), pd.DataFrame()
     '''
-    # TODO: extract header information from header keys in order to improve
-    #       mantainability
-    # keys = ['N', 'K', 'p', 'seed', 'trials', 'iters', 'burn']
-    with open(filename, 'r') as f:
-        graph_params = f.readline()
-        dynamics_params = f.readline()
-    _, N, K, p, seed = graph_params.split(' ')
-    _, trials, iters, burn, ic = dynamics_params.split(' ')
-
-    N = int(N.split('=')[1])
-    K = int(K.split('=')[1])
-    p = float(p.split('=')[1])
-    seed = int(seed.split('=')[1])
-    trials = int(trials.split('=')[1])
-    iters = int(iters.split('=')[1])
-    burn = int(burn.split('=')[1])
-    ic = ic.split('=')[1].strip()
-    headers = dict(
-            N=N, K=K, p=p,
-            seed=seed,
-            trials=trials, iters=iters, burn=burn, initial_condition=ic
-            )
+    h = get_header(filename)
+    h['N'] = int(h['N'])
+    h['K'] = int(h['K'])
+    h['p'] = float(h['p'])
+    h['gseed'] = int(h['gseed'])
+    h['trials'] = int(h['trials'])
+    h['iters'] = int(h['iters'])
+    h['burn'] = int(h['burn'])
+    h['initial_condition'] = h['initial_condition'].strip()
 
     df = pd.read_csv(filename, header=2, delimiter=',')
-    return headers, df
+    return h, df
 
 
 def load_trial(filename):
