@@ -5,9 +5,9 @@
 #include <iostream>
 #include <string>
 #include <random>
-#include <omp.h>
 #include "pcg_random/pcg_random.hpp"
 #include "dynamics.hpp"
+#include <omp.h>
 
 // FUNCTION DEFINITIONS
 void initialize_everything(
@@ -485,15 +485,14 @@ Batch run_batch(
                 std::cout << "Batch running on " << thrdnum << " threads\n";
             }
         }
-        pcg32 RNG(seed);
-
+        pcg32 RNG(seed);  // trials share a seed but are different streams
         States states;
         Deltas deltas;
         Rates rates;
         reset_system(states, deltas, rates, rates_table, RNG);
 #pragma omp for
         for (size_t i = 0; i < trials; i++) {
-            pcg32 trial_rng(seed, i);
+            pcg32 trial_rng(seed, i);  // different streams
             if (initial_condition == "random") {
                 initialize_random_states(states, RNG);
             } else if (initial_condition == "uniform") {

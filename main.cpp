@@ -17,8 +17,9 @@
 #include "misc.hpp"
 
 #include "experiment-trial_time_evolution.hpp"
-#include "experiment-benchmark.hpp"
 #include "experiment-chi_curves.hpp"
+#include "experiment-benchmark.hpp"
+#include "experiment-escapetime.hpp"
 
 // PRINTER FUNCTIONS
 /* print the state for each site to stdout */
@@ -113,6 +114,15 @@ int main(int argc, char** argv) {
         expt.print_headers();
         double runtime = expt.run();
         std::cout << "Runtime: " << runtime << "\n";
+    }
+
+    // RUN ESCAPE TIME EXPERIMENT
+    if (cmdOptionExists(argv, argv+argc, "-e")) {
+        Escape_time expee(argc, argv);
+        double runtime = expee.run();
+        std::cout << "Escape times saved to file: " << expee.get_filename()
+                  << "\n"
+                  << "Runtime: " << runtime << "\n";
     }
 
     // RUN A BATCH OF TRIALS FOR EACH COUPLING STRENGTH
