@@ -113,11 +113,11 @@ std::vector<double> Escape_time::runescape(double a)
         States local_states;
         Deltas local_deltas;
         Rates local_rates;
-        initialize_uniform_states(local_states);
-        initialize_deltas(local_states, local_deltas);
-        initialize_rates(local_deltas, local_rates, rates_table);
 #pragma omp for
         for (size_t i=0; i<_trials; i++) {
+            initialize_uniform_states(local_states);
+            initialize_deltas(local_states, local_deltas);
+            initialize_rates(local_deltas, local_rates, rates_table);
             double t = 0;
             pcg32 RNG(seed, i*17);
             for (size_t j=0; j<_maxiters; j++) {
