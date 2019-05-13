@@ -13,7 +13,6 @@ typedef struct {
     uint8_t array[N];
     uint16_t pop[3];
 } States;
-typedef int16_t Deltas[N];
 typedef struct {
     double array[N];
     double sum;
