@@ -126,7 +126,7 @@ std::vector<double> Escape_time::runescape(double a)
                     rates_table, RNG, uniform
                 );
                  t += 1.0 / local_rates.sum;
-                if (local_states.pop[0] < N/3) {
+                if (local_states.pop[0] <= N/3) {
                     Tvec[i] = t;
                     break;
                 }
