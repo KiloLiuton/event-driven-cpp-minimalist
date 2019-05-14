@@ -69,9 +69,8 @@ Escape_time::Escape_time(int argc, char** argv) {
 }
 
 double Escape_time::run() {
-    struct timespec start, finish;    // measure code run-time
-    double elapsed;
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    struct timespec expstart, expfinish;    // measure code run-time
+    clock_gettime(CLOCK_MONOTONIC, &expstart);
 
     FILE* trial_log_file = fopen(_filename.c_str(), "w");
     fprintf(trial_log_file,
@@ -80,6 +79,8 @@ double Escape_time::run() {
             N, K, p, TOPOLOGY_SEED, _trials, _maxiters);
     fprintf(trial_log_file, "coupling,[escape_times]\n");
     for (size_t i=0; i<_couplingn; i++) {
+        struct timespec trialstart, trialfinish;    // measure code run-time
+        clock_gettime(CLOCK_MONOTONIC, &trialstart);
         double a = _couplingstart + i*(_couplingend-_couplingstart)/_couplingn;
         std::vector<double> Tvec = runescape(a);
         fprintf(trial_log_file, "%.8f", a);
@@ -87,14 +88,18 @@ double Escape_time::run() {
             fprintf(trial_log_file, ",%.8f", t);
         }
         fprintf(trial_log_file, "\n");
+        double trialtime;
+        trialtime = (trialfinish.tv_sec - trialstart.tv_sec);
+        trialtime += (trialfinish.tv_nsec - trialstart.tv_nsec) / 1000000000.0;
 
-        printf("a=%.4f done [%lu/%d]\n", a, i+1, _couplingn);
+        printf("a=%.4f done (%.2fs) [%lu/%d]\n", a, trialtime, i+1, _couplingn);
     }
     fclose(trial_log_file);
 
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    elapsed = (finish.tv_sec - start.tv_sec);
-    elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+    clock_gettime(CLOCK_MONOTONIC, &expfinish);
+    double elapsed;
+    elapsed = (expfinish.tv_sec - expstart.tv_sec);
+    elapsed += (expfinish.tv_nsec - expstart.tv_nsec) / 1000000000.0;
     return elapsed;
 }
 
