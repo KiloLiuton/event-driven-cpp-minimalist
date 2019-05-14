@@ -88,6 +88,7 @@ double Escape_time::run() {
             fprintf(trial_log_file, ",%.8f", t);
         }
         fprintf(trial_log_file, "\n");
+        clock_gettime(CLOCK_MONOTONIC, &trialfinish);
         double trialtime;
         trialtime = (trialfinish.tv_sec - trialstart.tv_sec);
         trialtime += (trialfinish.tv_nsec - trialstart.tv_nsec) / 1000000000.0;
