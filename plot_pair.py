@@ -26,8 +26,7 @@ def plot_phase(ax, filename):
     df.columns = list(range(df.shape[1]-1)) + ['time_elapsed']
     ax.set_xlabel("Phases", fontsize=14)
     ax.set_ylabel("Time [a.u.]", fontsize=14)
-    # CROP PART OF THE TIME AXIS
-    nrows = df.shape[0]
+    # CROP PART TIME AXIS FROM s TO e
     s, e = 0, -1
     M = df.iloc[s:e]
     ax.imshow(
@@ -52,13 +51,14 @@ def plotpops(ax, p0, p1, t):
 
 def usage():
     sys.exit("Usage: Choose one of the two options\nPlot an identical" +
-             "corresponding file: ./plot_pair [trialfile OR" +
-             "phasefile]\nExplicitly choose both files: ./plot_pair [trialfile]" +
+             "corresponding file: ./plot_pair [trialfile OR " +
+             "phasefile]\nExplicitly choose both files: ./plot_pair [trialfile] " +
              "[phasefile]\n")
 
 tfile = pfile = ''
+datadir = ''
 if len(sys.argv) == 2:
-    tfile = sys.argv[1]
+    datadir, tfile = '/'.join(sys.argv[1].split('/')[:-1]), sys.argv[1].split('/')[-1]
     if tfile.startswith("phase"):
         pfile = tfile
         tfile = tfile[5:]
@@ -71,11 +71,16 @@ elif len(sys.argv) == 3:
         tfile, pfile = pfile, tfile
 else:
     usage()
+if datadir:
+    tfile = datadir + '/' + tfile
+    pfile = datadir + '/' + pfile
+print(tfile)
+print(pfile)
 
 try:
     h, data = load_trial(tfile)
 except:
-    print("could not oprn file", tfile)
+    print("Could not open file", tfile)
     usage()
 N = h['N']
 K = h['K']
@@ -96,18 +101,23 @@ p1 = data['pop1'].values[int(xmin*L): int(xmax*L)] / N
 t = data['time_elapsed'].values[int(xmin*L): int(xmax*L)]
 dt = data['dt'].values[int(xmin*L): int(xmax*L)]
 filesize = os.path.getsize(tfile)
+compressfile = None
 if filesize > 300e6:
-    red = int(filesize / 300e6)
-    r = r[::red]
-    psi = psi[::red]
-    p0 = p0[::red]
-    p1 = p1[::red]
-    t = t[::red]
-    dt = dt[::red]
+    compressfile = int(filesize / 300e6)
+    r = r[::compressfile]
+    psi = psi[::compressfile]
+    p0 = p0[::compressfile]
+    p1 = p1[::compressfile]
+    t = t[::compressfile]
+    dt = dt[::compressfile]
 
 fig = plt.figure(figsize=(16, 9))
 ax = fig.add_subplot(121)
-captionleft = plot_phase(ax, pfile)
+try:
+    captionleft = plot_phase(ax, pfile)
+except:
+    print('Could not open file', pfile)
+    usage()
 ax.tick_params(labelsize=14)
 
 ax1 = fig.add_subplot(322)
@@ -141,7 +151,10 @@ ax3.set_ylabel('$\\psi$', fontsize=14)
 ax3.plot(t, psi, 'r-')
 
 if (burn < xmax*L) and (burn > xmin*L):
-    tburn = t[int((burn - int(xmin*L))/red)]
+    if compressfile:
+        tburn = t[int((burn - int(xmin*L))/compressfile)]
+    else:
+        tburn = t[burn - int(xmin*L)]
     ax.axhline(tburn, color='red', lw=1.5, linestyle='--')
     ax1.axvline(tburn, color='red', lw=1.5, linestyle='--')
     ax2.axvline(tburn, color='red', lw=1.5, linestyle='--')

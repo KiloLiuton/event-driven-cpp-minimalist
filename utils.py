@@ -16,6 +16,7 @@ def get_header(fn, nrows=2):
         if '=' in x:
             key, val = x.split('=')
             key, val = key.strip(), val.strip()
+            if key == 'gseed': gseed = True
             if key == 'seed' and not gseed:
                 key = 'gseed'
                 gseed = True

@@ -34,6 +34,7 @@ for filename in sys.argv[1:]:
     dt = data['dt'].values[int(xmin*numlines): int(xmax*numlines)]
     # if filesize is > 300MB, discard one line every `red` lines
     filesize = os.path.getsize(filename)
+    red = 1
     if filesize > 300e6:
         red = int(filesize / 300e6)
         r = r[::red]
@@ -47,14 +48,17 @@ for filename in sys.argv[1:]:
     ax2 = fig.add_subplot(312, sharex=ax1)
     ax3 = fig.add_subplot(313, sharex=ax1)
     ax1.set_title(title, fontsize=fs*1.6)
-    # ax2.set_ylim(0, max(r)*1.15)
     ax2.set_ylim(0, 1)
-    # ax3.set_ylim(0, max(psi)*1.15)
     ax3.set_ylim(0, 1)
 
     ax1.tick_params(labelsize=fs)
     ax2.tick_params(labelsize=fs)
     ax3.tick_params(labelsize=fs)
+
+    tmp = int(numlines*(burn/iters - xmin)/red)
+    if tmp < 0: tmp = 0
+    ax1.axvline(t[tmp], color='red', lw=2)
+    ax2.axvline(t[tmp], color='red', lw=2)
 
     ax1.set_xlim(t[0], t[-1])
     ax1.set_ylim(0, 1)
@@ -65,10 +69,9 @@ for filename in sys.argv[1:]:
     ax3.set_xlabel('Time [a.u.]', fontsize=fs*1.4)
     ax3.set_ylabel('$\\psi$', fontsize=fs*1.4)
     ax3.set_xlim(t[0], t[-1])
+    box = dict(facecolor='gray', alpha=.5)
+    ax3.text(.9, .8, '$<\\psi>$=%f\n$<r>=$%f'%(np.mean(psi[tmp:]), np.mean(r[tmp:])), bbox=box, transform=ax3.transAxes, fontsize=fs)
 
-    if (burn < xmax*numlines) and (burn > xmin*numlines):
-        ax1.axvline(t[burn - int(xmin*numlines)], color='red', lw=2)
-        ax2.axvline(t[burn - int(xmin*numlines)], color='red', lw=2)
 
     p0 = [(t[0], 0)] + list(zip(t, p0 + p1)) + [(t[-1], 0)]
     p1 = [(t[0], 0)] + list(zip(t, p1)) + [(t[-1], 0)]
