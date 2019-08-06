@@ -474,7 +474,7 @@ Batch run_batch(
     clock_gettime(CLOCK_MONOTONIC, &start);
     omp_set_num_threads(8);
 #pragma omp parallel default(none) \
-    shared(rates_table,initial_condition,std::cout) \
+    shared(rates_table,initial_condition,std::cout,seed) \
     firstprivate(trial_iters,trial_burn,trials,uniform,verbose) \
     reduction(+:r,r2,psi,psi2,omega)
     {
