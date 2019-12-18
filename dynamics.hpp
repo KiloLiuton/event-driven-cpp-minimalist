@@ -17,8 +17,10 @@ typedef struct {
     double array[N];
     double sum;
 } Rates;
+typedef double NaturalFreqs[N];
 typedef int16_t Deltas[N];
 typedef std::uniform_real_distribution<double> Uniform;
+typedef std::normal_distribution<double> Normal;
 
 // parameters to run a trial
 struct trial_params {
@@ -66,6 +68,7 @@ void initialize_everything(
         double coupling,
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        NaturalFreqs &g,
         pcg32 &RNG,
         std::string initial_condition,
         bool verbose
@@ -74,6 +77,7 @@ void initialize_everything(
 void reset_system(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        NaturalFreqs &g,
         pcg32 &RNG,
         std::string initial_condition
     );
@@ -85,28 +89,41 @@ double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]);
 void initialize_random_states(States &local_states, pcg32 &RNG);
 void initialize_uniform_states(States &local_states);
 void initialize_wave_states(States &local_states, int num_bins);
+/* populate the natural frequencies array */
+void initialize_natural_frequencies(NaturalFreqs &g, pcg32 &RNG);
 /* populates a given rates vector from the current rates table */
 void initialize_rates(
         Deltas &local_deltas,
-        Rates &local_rates, double rates_table[]
+        Rates &local_rates,
+        double rates_table[],
+        const NaturalFreqs &g
     );
 /* populates delta vector (states must be populated) */
 void initialize_deltas(States &local_states, Deltas &local_deltas);
 /* calculate the squared order parameter of a given states array */
-double get_squared_op(States &local_states);
+double get_squared_op(const States &local_states);
 /* calculates the order parameter of a given states array */
-double get_op(States &local_states);
+double get_op(const States &local_states);
 /* calculates the psi order parameter for the current state of the system */
-double get_squared_psi_op(States &local_states, Rates &local_rates);
+double get_squared_psi_op(
+        const States &local_states,
+        const Rates &local_rates,
+        const NaturalFreqs &g
+        );
 /* calculates the psi order parameter for the current state of the system */
-double get_psi_op(States &local_states, Rates &local_rates);
+double get_psi_op(
+        const States &local_states,
+        const Rates &local_rates,
+        const NaturalFreqs &g
+        );
 
 // DYNAMICS FUNCTIONS
 /* updates deltas, rates and states for a site and its neighbors */
 void update_site(
         int site_index,
         States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[]
+        Rates &local_rates, double rates_table[],
+        const NaturalFreqs &g
     );
 /* select an index that will undergo transition */
 uint16_t transitionIndex(
@@ -117,6 +134,7 @@ uint16_t transitionIndex(
 uint16_t transition_site(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        const NaturalFreqs &g,
         pcg32 &RNG, Uniform &uniform
     );
 
@@ -133,6 +151,7 @@ Trial run_trial(
         size_t iters, size_t burn,
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        const NaturalFreqs &g,
         pcg32 &RNG, Uniform &uniform
     );
 

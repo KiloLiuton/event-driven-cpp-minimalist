@@ -25,12 +25,13 @@ uint8_t median(size_t n0, size_t n1, size_t n2)
 class Time_evolution {
 public:
     Time_evolution(int argc, char** argv);
-    /* run a trial for ITERS time steps after burning BURN steps and save
+    /* simulate a trial for ITERS time steps after burning BURN steps and save
      * results to log_file. */
     void log_trial_to_file(
             size_t iters, size_t burn,
             States &states, Deltas &deltas,
             Rates &rates, double rates_table[],
+            NaturalFreqs &g,
             pcg32 &RNG, Uniform &uniform,
             FILE* log_file
         );
@@ -136,6 +137,7 @@ Time_evolution::Time_evolution(int argc, char** argv) {
 void Time_evolution::log_trial_to_file(
             size_t iters, size_t burn,
             States &states, Deltas &deltas, Rates &rates, double rates_table[],
+            NaturalFreqs &g,
             pcg32 &RNG, Uniform &uniform,
             FILE* log_file
         ) {
@@ -146,7 +148,13 @@ void Time_evolution::log_trial_to_file(
         for (size_t i=0; i<burn; i++) {
             dt = 1.0 / rates.sum;
             time_elapsed += dt;
-            transition_site(states, deltas, rates, rates_table, RNG, uniform);
+            transition_site(states,
+                            deltas,
+                            rates,
+                            rates_table,
+                            g,
+                            RNG,
+                            uniform);
         }
     } else {
         total_iters = burn + iters;
@@ -157,7 +165,13 @@ void Time_evolution::log_trial_to_file(
         for (size_t i=0; i<total_iters; i++) {
             dt = 1.0 / rates.sum;
             time_elapsed += dt;
-            transition_site(states, deltas, rates, rates_table, RNG, uniform);
+            transition_site(states,
+                            deltas,
+                            rates,
+                            rates_table,
+                            g,
+                            RNG,
+                            uniform);
             log_counter += dt;
             if (log_counter >= _loginterval) {
                 compress_states_and_write_to_file(log_file, states.array, time_elapsed);
@@ -168,11 +182,17 @@ void Time_evolution::log_trial_to_file(
         for (size_t i=0; i<total_iters; i++) {
             dt = 1.0 / rates.sum;
             time_elapsed += dt;
-            transition_site(states, deltas, rates, rates_table, RNG, uniform);
+            transition_site(states,
+                            deltas,
+                            rates,
+                            rates_table,
+                            g,
+                            RNG,
+                            uniform);
             log_counter += dt;
             if (log_counter >= _loginterval) {
                 r = get_squared_op(states);
-                psi = get_psi_op(states, rates);
+                psi = get_psi_op(states, rates, g);
                 fprintf(log_file,
                         "%16.16f,%16.16f,%d,%d,%f,%f\n",
                         r, psi, states.pop[0], states.pop[1], time_elapsed, dt);
@@ -203,12 +223,14 @@ double Time_evolution::run() {
     Deltas local_deltas;
     Rates local_rates;
     double rates_table[NUM_POSSIBLE_TRANSITIONS];
+    NaturalFreqs g;
     pcg32 RNG(_t_params.seed, _t_params.stream);
     Uniform uniform(0.0, 1.0);
     initialize_everything(
             _t_params.coupling,
             local_states, local_deltas,
             local_rates, rates_table,
+            g,
             RNG, _initial_condition,
             false
         );
@@ -219,6 +241,7 @@ double Time_evolution::run() {
             _t_params.iters, _t_params.burn,
             local_states, local_deltas,
             local_rates, rates_table,
+            g,
             RNG, uniform,
             trial_log_file
         );

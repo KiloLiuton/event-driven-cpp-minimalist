@@ -26,15 +26,17 @@ void Benchmark::run() {
     Deltas deltas;
     Rates rates;
     double rates_table[NUM_POSSIBLE_TRANSITIONS];
+    NaturalFreqs g;
     pcg32 RNG(DEFAULT_SEED, DEFAULT_STREAM);
     Uniform uniform(0.0, 1.0);
-    initialize_everything(2.0, states, deltas, rates, rates_table, RNG, "random", false);
+    initialize_everything(2.0, states, deltas, rates, rates_table, g, RNG, "random", false);
     for (int i=0; i<_iters; i++) {
         clock_gettime(CLOCK_MONOTONIC, &start);
         run_trial(
                 10*N*log(N), 0,
                 states, deltas,
                 rates, rates_table,
+                g,
                 RNG, uniform
             );
         clock_gettime(CLOCK_MONOTONIC, &finish);

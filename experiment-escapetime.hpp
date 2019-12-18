@@ -119,17 +119,18 @@ std::vector<double> Escape_time::runescape(double a)
         States local_states;
         Deltas local_deltas;
         Rates local_rates;
+        NaturalFreqs g;
 #pragma omp for
         for (size_t i=0; i<_trials; i++) {
             initialize_uniform_states(local_states);
             initialize_deltas(local_states, local_deltas);
-            initialize_rates(local_deltas, local_rates, rates_table);
+            initialize_rates(local_deltas, local_rates, rates_table, g);
             double t = 0;
             pcg32 RNG(seed, i*17);
             for (size_t j=0; j<_maxiters; j++) {
                 transition_site(
                     local_states, local_deltas, local_rates,
-                    rates_table, RNG, uniform
+                    rates_table, g, RNG, uniform
                 );
                  t += 1.0 / local_rates.sum;
                 if (local_states.pop[0] <= N/3) {

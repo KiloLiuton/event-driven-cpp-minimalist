@@ -14,6 +14,7 @@ void initialize_everything(
         double a,
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        NaturalFreqs &g,
         pcg32 &RNG,
         std::string initial_condition,
         bool verbose=false
@@ -25,6 +26,7 @@ void initialize_everything(
                   << "  p=" << p
                   << "  a=" << a << '\n';
     }
+    initialize_natural_frequencies(g, RNG);
     initialize_rates_table(a, rates_table);
     if (verbose) {
         std::cout << "Rates table initialized!\n";
@@ -45,7 +47,7 @@ void initialize_everything(
     if (verbose) {
         std::cout << "Deltas initialized!\n";
     }
-    initialize_rates(local_deltas, local_rates, rates_table);
+    initialize_rates(local_deltas, local_rates, rates_table, g);
     if (verbose) {
         std::cout << "Rates initialized!\n\n";
     }
@@ -54,6 +56,7 @@ void initialize_everything(
 void reset_system(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        NaturalFreqs &g,
         pcg32 &RNG,
         std::string initial_condition="random"
     ) {
@@ -65,7 +68,7 @@ void reset_system(
         initialize_wave_states(local_states, std::stoi(initial_condition.substr(4)));
     }
     initialize_deltas(local_states, local_deltas);
-    initialize_rates(local_deltas, local_rates, rates_table);
+    initialize_rates(local_deltas, local_rates, rates_table, g);
 }
 
 void initialize_rates_table( double a, double rates_table[]) {
@@ -145,14 +148,23 @@ void initialize_wave_states(States &local_states, int num_bins) {
     }
 }
 
+void initialize_natural_frequencies(NaturalFreqs &g, pcg32 &RNG) {
+    Normal norm(1., .1);
+    for (uint16_t i=0; i<N; i++) {
+        g[i] = abs(norm(RNG));
+    }
+}
+
 void initialize_rates(
         Deltas &local_deltas,
-        Rates &local_rates, double rates_table[]
+        Rates &local_rates,
+        double rates_table[],
+        const NaturalFreqs &g
     ) {
     local_rates.sum = .0;
     for (uint16_t i = 0; i < N; i++) {
         int d = local_deltas[i];
-        const double r = get_rate_from_table(i, d, rates_table);
+        const double r = g[i] * get_rate_from_table(i, d, rates_table);
         local_rates.array[i] = r;
         local_rates.sum += r;
     }
@@ -163,8 +175,6 @@ void initialize_deltas(States &local_states, Deltas &local_deltas) {
         const uint16_t ki = NUMBER_OF_NEIGHBORS[i];
         const uint32_t ind = INDEXES[i];
         const int8_t state = local_states.array[i];
-        // TODO benchmark to see which is faster
-        // const int8_t nextState = (state+1) % 3;
         const int8_t nextState = (state + 1 > 2) ? 0 : state + 1;
         int16_t d = 0;
 
@@ -181,36 +191,41 @@ void initialize_deltas(States &local_states, Deltas &local_deltas) {
     }
 }
 
-double get_squared_op(States &local_states) {
+double get_squared_op(const States &local_states) {
     uint16_t N0 = local_states.pop[0];
     uint16_t N1 = local_states.pop[1];
     uint16_t N2 = local_states.pop[2];
     return (double) (N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / (N*N);
 }
 
-double get_op(States &local_states) {
+double get_op(const States &local_states) {
     uint16_t N0 = local_states.pop[0];
     uint16_t N1 = local_states.pop[1];
     uint16_t N2 = local_states.pop[2];
     return (double) sqrt(N0*N0 + N1*N1 + N2*N2 - N1*N2 - N0*N1 - N0*N2) / N;
 }
 
-double get_squared_psi_op(States &local_states, Rates &local_rates) {
+double get_squared_psi_op(
+        const States &local_states,
+        const Rates &local_rates,
+        const NaturalFreqs &g
+        ) {
+    // TODO: normalize psi op by the NaturalFreqs distribution
     double s1 = 0;
     double s2 = 0;
     for (size_t i = 0; i < N; i++) {
         uint8_t s = local_states.array[i];
         switch (s) {
         case 0:
-            s1 += local_rates.array[i];
+            s1 += g[i]*local_rates.array[i];
             break;
         case 1:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += SIN_PHI1 * local_rates.array[i];
+            s1 += -0.5 * g[i]*local_rates.array[i];
+            s2 += SIN_PHI1 * g[i]*local_rates.array[i];
             break;
         case 2:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += -SIN_PHI1 * local_rates.array[i];
+            s1 += -0.5 * g[i]*local_rates.array[i];
+            s2 += -SIN_PHI1 * g[i]*local_rates.array[i];
             break;
         default:
             std::cout << (int) s << "<- Unknown state in get_squared_psi_op!\n";
@@ -220,22 +235,27 @@ double get_squared_psi_op(States &local_states, Rates &local_rates) {
     return (std::pow(s1, 2.0) + std::pow(s2, 2.0)) / (N*N);
 }
 
-double get_psi_op(States &local_states, Rates &local_rates) {
+double get_psi_op(
+        const States &local_states,
+        const Rates &local_rates,
+        const NaturalFreqs &g
+        ) {
+    // TODO: normalize psi op by the NaturalFreqs distribution
     double s1 = 0;
     double s2 = 0;
     for (size_t i = 0; i < N; i++) {
         uint8_t s = local_states.array[i];
         switch (s) {
        case 0:
-            s1 += local_rates.array[i];
+            s1 += g[i]*local_rates.array[i];
             break;
         case 1:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += SIN_PHI1 * local_rates.array[i];
+            s1 += -0.5 * g[i]*local_rates.array[i];
+            s2 += SIN_PHI1 * g[i]*local_rates.array[i];
             break;
         case 2:
-            s1 += -0.5 * local_rates.array[i];
-            s2 += -SIN_PHI1 * local_rates.array[i];
+            s1 += -0.5 * g[i]*local_rates.array[i];
+            s2 += -SIN_PHI1 * g[i]*local_rates.array[i];
             break;
         default:
             std::cout << (int) s << " <- Unknown state in get_psi_op!\n";
@@ -248,7 +268,8 @@ double get_psi_op(States &local_states, Rates &local_rates) {
 void update_site(
         uint16_t i,
         States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[]
+        Rates &local_rates, double rates_table[],
+        const NaturalFreqs &g
     ) {
     uint8_t state = local_states.array[i];
     // TODO benchmark to see which is faster
@@ -273,13 +294,17 @@ void update_site(
             siteDelta += 1;
             local_deltas[nbIndex] -= 1;
         }
-        double nbRate = get_rate_from_table(nbIndex, local_deltas[nbIndex], rates_table);
+        double nbRate = g[nbIndex] * get_rate_from_table(nbIndex,
+                                                         local_deltas[nbIndex],
+                                                         rates_table);
         rateIncrease += nbRate;
         rateDecrease -= local_rates.array[nbIndex];
         local_rates.array[nbIndex] = nbRate;
     }
     local_deltas[i] = siteDelta;
-    double siteRate = get_rate_from_table(i, local_deltas[i], rates_table);
+    double siteRate = g[i] * get_rate_from_table(i,
+                                                 local_deltas[i],
+                                                 rates_table);
     rateIncrease += siteRate;
     rateDecrease -= local_rates.array[i];
     local_rates.array[i] = siteRate;
@@ -313,10 +338,11 @@ uint16_t transitionIndex(
 uint16_t transition_site(
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        const NaturalFreqs &g,
         pcg32 &RNG, Uniform &uniform
     ) {
     uint16_t i = transitionIndex(local_rates, RNG, uniform);
-    update_site(i, local_states, local_deltas, local_rates, rates_table);
+    update_site(i, local_states, local_deltas, local_rates, rates_table, g);
     return i;
 }
 
@@ -324,6 +350,7 @@ Trial run_no_omega_trial(
         size_t iters, size_t burn,
         States &local_states, Deltas &local_deltas,
         Rates &local_rates, double rates_table[],
+        const NaturalFreqs &g,
         pcg32 &RNG, Uniform &uniform,
         std::string initial_condition="random"
     ) {
@@ -335,11 +362,12 @@ Trial run_no_omega_trial(
         initialize_wave_states(local_states, std::stoi(initial_condition.substr(4)));
     }
     initialize_deltas(local_states, local_deltas);
-    initialize_rates(local_deltas, local_rates, rates_table);
+    initialize_rates(local_deltas, local_rates, rates_table, g);
     for (size_t i = 0; i < burn; i++) {
         transition_site(
                 local_states, local_deltas,
                 local_rates, rates_table,
+                g,
                 RNG, uniform
             );
     }
@@ -349,11 +377,12 @@ Trial run_no_omega_trial(
     for (size_t i = 0; i < iters; i++) {
         double dt = 1.0 / local_rates.sum;
         R += get_op(local_states) * dt;
-        PSI += get_psi_op(local_states, local_rates) * dt;
+        PSI += get_psi_op(local_states, local_rates, g) * dt;
         time_elapsed += dt;
         transition_site(
                 local_states, local_deltas,
                 local_rates, rates_table,
+                g,
                 RNG, uniform
             );
     }
@@ -365,16 +394,22 @@ Trial run_no_omega_trial(
 }
 
 Trial run_trial(
-        size_t iters, size_t burn,
-        States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[],
-        pcg32 &RNG, Uniform &uniform
+        size_t iters,
+        size_t burn,
+        States &local_states,
+        Deltas &local_deltas,
+        Rates &local_rates,
+        double rates_table[],
+        const NaturalFreqs &g,
+        pcg32 &RNG,
+        Uniform &uniform
     ) {
 
     for (size_t i = 0; i < burn; i++) {
         transition_site(
                 local_states, local_deltas,
                 local_rates, rates_table,
+                g,
                 RNG, uniform
             );
     }
@@ -400,11 +435,12 @@ Trial run_trial(
         transition_site(
                 local_states, local_deltas,
                 local_rates, rates_table,
+                g,
                 RNG, uniform
             );
         double dt = 1.0 / local_rates.sum;
         R += get_op(local_states) * dt;
-        PSI += get_psi_op(local_states, local_rates) * dt;
+        PSI += get_psi_op(local_states, local_rates, g) * dt;
         time_elapsed += dt;
 
         size_t n = local_states.pop[0];
@@ -472,6 +508,7 @@ Batch run_batch(
     initialize_rates_table(coupling, rates_table);
     struct timespec start, finish;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    // TODO: dynamically get number of threads
     omp_set_num_threads(8);
 #pragma omp parallel default(none) \
     shared(rates_table,initial_condition,std::cout,seed) \
@@ -489,7 +526,8 @@ Batch run_batch(
         States states;
         Deltas deltas;
         Rates rates;
-        reset_system(states, deltas, rates, rates_table, RNG);
+        NaturalFreqs g;
+        reset_system(states, deltas, rates, rates_table, g, RNG);
 #pragma omp for
         for (size_t i = 0; i < trials; i++) {
             pcg32 trial_rng(seed, i);  // different streams
@@ -501,11 +539,15 @@ Batch run_batch(
                 initialize_random_states(states, RNG);
             }
             initialize_deltas(states, deltas);
-            initialize_rates(deltas, rates, rates_table);
+            initialize_rates(deltas, rates, rates_table, g);
             Trial trial = run_trial(
-                    trial_iters, trial_burn,
-                    states, deltas,
-                    rates, rates_table,
+                    trial_iters,
+                    trial_burn,
+                    states,
+                    deltas,
+                    rates,
+                    rates_table,
+                    g,
                     trial_rng,
                     uniform
                 );
