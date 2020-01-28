@@ -26,7 +26,7 @@ void initialize_everything(
                   << "  p=" << p
                   << "  a=" << a << '\n';
     }
-    initialize_natural_frequencies(g, RNG);
+    initialize_natural_frequencies(1.0, 0.1, g, RNG);
     initialize_rates_table(a, rates_table);
     if (verbose) {
         std::cout << "Rates table initialized!\n";
@@ -155,13 +155,6 @@ void initialize_natural_frequencies(
         pcg32 &RNG
         ) {
     Normal norm(mean, stddev);
-    for (uint16_t i=0; i<N; i++) {
-        g[i] = abs(norm(RNG));
-    }
-}
-
-void initialize_natural_frequencies(NaturalFreqs &g, pcg32 &RNG) {
-    Normal norm(1.0, 0.1);
     for (uint16_t i=0; i<N; i++) {
         g[i] = abs(norm(RNG));
     }

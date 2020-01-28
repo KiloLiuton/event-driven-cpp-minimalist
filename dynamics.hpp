@@ -90,7 +90,12 @@ void initialize_random_states(States &local_states, pcg32 &RNG);
 void initialize_uniform_states(States &local_states);
 void initialize_wave_states(States &local_states, int num_bins);
 /* populate the natural frequencies array */
-void initialize_natural_frequencies(NaturalFreqs &g, pcg32 &RNG);
+void initialize_natural_frequencies(
+        double mean,
+        double stddev,
+        NaturalFreqs &g,
+        pcg32 &RNG
+        );
 /* populates a given rates vector from the current rates table */
 void initialize_rates(
         Deltas &local_deltas,
