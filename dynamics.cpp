@@ -148,8 +148,20 @@ void initialize_wave_states(States &local_states, int num_bins) {
     }
 }
 
+void initialize_natural_frequencies(
+        double mean,
+        double stddev,
+        NaturalFreqs &g,
+        pcg32 &RNG
+        ) {
+    Normal norm(mean, stddev);
+    for (uint16_t i=0; i<N; i++) {
+        g[i] = abs(norm(RNG));
+    }
+}
+
 void initialize_natural_frequencies(NaturalFreqs &g, pcg32 &RNG) {
-    Normal norm(1., .1);
+    Normal norm(1.0, 0.1);
     for (uint16_t i=0; i<N; i++) {
         g[i] = abs(norm(RNG));
     }
