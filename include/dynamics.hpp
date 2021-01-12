@@ -6,8 +6,8 @@
 #define DEFAULT_STREAM 23u
 
 #include <random>
+#include <pcg_random.hpp>
 #include "default_topology.hpp"
-#include "pcg_random/pcg_random.hpp"
 
 typedef struct {
     uint8_t array[N];

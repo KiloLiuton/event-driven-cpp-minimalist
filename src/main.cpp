@@ -12,7 +12,8 @@
 #include <algorithm>
 #include <random>
 #include <math.h>
-#include "pcg_random/pcg_random.hpp"
+#include <pcg_random.hpp>
+
 #include "dynamics.hpp"
 #include "misc.hpp"
 

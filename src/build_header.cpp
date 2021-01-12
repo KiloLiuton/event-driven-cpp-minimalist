@@ -7,7 +7,7 @@
 #include <sstream>
 #include <iomanip>
 #include <set>
-#include "pcg_random/pcg_random.hpp"
+#include "../pcg_random/pcg_random.hpp"
 
 struct edge {
     int x, y;
@@ -123,12 +123,19 @@ void graph::printkernels() {
 }
 
 int main(int argc, char** argv) {
+    if ( (argc < 5) || (argc > 6) ) {
+        std::cout << "Usage: build_header N K p topology_headers seed[optional]\n"
+                  << "The last option specifies a random seed. If absent, the seed 42 is used.\n"
+                  << "Example: build_header 20 3 0.100000 topology_headers\n";
+        return 0;
+    }
     unsigned int N = std::stoi(argv[1]);
     unsigned int K = std::stoi(argv[2]);
     double p = std::stof(argv[3]);
+    std::string topology_folder = argv[4];
     unsigned int s;
-    if (argc == 5) {
-        s = std::stoi(argv[4]);
+    if (argc == 6) {
+        s = std::stoi(argv[5]);
     } else {
         s = 42u;
     }
@@ -145,7 +152,8 @@ int main(int argc, char** argv) {
         std::cout << "Header already exists, skipping :)\n";
         return 0;
     }
-    std::ofstream header(fname, std::ofstream::out);
+    std::ofstream header(topology_folder+"/"+fname, std::ofstream::out);
+    std::cout << topology_folder+"/"+fname << std::endl;
 
     std::uniform_real_distribution<double> uniform(0., 1.);
     pcg32 rng(s);
@@ -216,6 +224,6 @@ int main(int argc, char** argv) {
     // PRINT HEADER
 
     header.close();
-    std::cout << fname << std::endl;
+    std::cout << "Wrote to file:" << topology_folder+"/"+fname << std::endl;
     return 0;
 }

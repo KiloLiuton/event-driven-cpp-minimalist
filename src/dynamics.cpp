@@ -5,9 +5,9 @@
 #include <iostream>
 #include <string>
 #include <random>
-#include "pcg_random/pcg_random.hpp"
-#include "dynamics.hpp"
+#include <pcg_random.hpp>
 #include <omp.h>
+#include "dynamics.hpp"
 
 // FUNCTION DEFINITIONS
 void initialize_everything(

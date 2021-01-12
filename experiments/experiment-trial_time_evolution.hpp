@@ -3,10 +3,11 @@
  * system properties. All simulations parameters are passed on though the
  * `trial_params` struct as well as the topology specified during compilation.
  */
+#include <iostream>
 #include <sstream>
 #include <fstream>
-#include "dynamics.hpp"
-#include "misc.hpp"
+#include <dynamics.hpp>
+#include <misc.hpp>
 
 uint8_t median(size_t n0, size_t n1, size_t n2)
 {
@@ -203,7 +204,7 @@ void Time_evolution::log_trial_to_file(
 }
 
 double Time_evolution::run() {
-    FILE* trial_log_file = fopen(_filename.c_str(), "w");
+    FILE* trial_log_file = fopen((_filename).c_str(), "w");
     fprintf(
             trial_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
@@ -254,7 +255,7 @@ double Time_evolution::run() {
 
 void Time_evolution::print_headers() {
     std::cout
-        << "Logging trial to file: " << get_filename() << '\n'
+        << "Logging trial to file: " << _filename << '\n'
         << "  Coupling: " << get_coupling() << '\n'
         << "  Seed: " << get_seed() << '\n'
         << "  Stream: " << get_stream() << '\n'

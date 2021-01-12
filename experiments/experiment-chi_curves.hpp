@@ -81,7 +81,7 @@ Chi_curves::Chi_curves(int argc, char** argv) {
 }
 
 void Chi_curves::run() {
-    FILE* batches_log_file = std::fopen(_filename.c_str(), "w");
+    FILE* batches_log_file = std::fopen((_filename).c_str(), "w");
     fprintf(
             batches_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
