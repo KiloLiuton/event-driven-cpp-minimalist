@@ -1,17 +1,22 @@
+
 /*
  *     Perform simulation of a single trial and log the time evolution of all
  * system properties. All simulations parameters are passed on though the
  * `trial_params` struct as well as the topology specified during compilation.
  */
+#define PI 3.14159265359
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <string>
+#include <math.h>
 #include <dynamics.hpp>
 #include <misc.hpp>
 
-class Time_evolution {
+class Biased_natural_freqs {
 public:
-    Time_evolution(int argc, char** argv);
+    Biased_natural_freqs(int argc, char** argv);
     /* simulate a trial for ITERS time steps after burning BURN steps and save
      * results to log_file. */
     void log_trial_to_file(
@@ -24,16 +29,18 @@ public:
         );
     double run();
     void print_headers();
-    double get_coupling()      { return _t_params.coupling; }
-    int get_seed()             { return _t_params.seed;     }
-    int get_stream()           { return _t_params.stream;   }
-    int get_iters()            { return _t_params.iters;    }
-    int get_burn()             { return _t_params.burn;     }
-    std::string get_ic()       { return _initial_condition; }
-    double get_timeinterval()  { return _loginterval;       }
-    double get_xinterval()     { return _logphases;         }
-    std::string get_filename() { return _filename;          }
-    bool get_discardburn()     { return _discardburn;       }
+    double      get_coupling()             { return _t_params.coupling;       }
+    int         get_seed()                 { return _t_params.seed;           }
+    int         get_stream()               { return _t_params.stream;         }
+    int         get_iters()                { return _t_params.iters;          }
+    int         get_burn()                 { return _t_params.burn;           }
+    std::string get_ic()                   { return _initial_condition;       }
+    std::string get_nfreq_bias()           { return _nfreq_bias;              }
+    double      get_nfreq_bias_amplitude() { return _nfreq_bias_amplitude;    }
+    double      get_timeinterval()         { return _loginterval;             }
+    size_t      get_phasebinsize()         { return _phasebinsize;            }
+    std::string get_filename()             { return _filename;                }
+    bool        get_discardburn()          { return _discardburn;             }
 private:
     std::string getDefaultTrialFilename(double coupling);
     void compress_states_and_write_to_file(FILE* file, uint8_t* states, double t);
@@ -43,14 +50,16 @@ private:
         2.0, DEFAULT_SEED, DEFAULT_STREAM,
         it, bu
     };
-    size_t _logphases = 0;
-    std::string _initial_condition = "uniform";
+    size_t _phasebinsize = 1+N/100; // create 100 bins by default
+    std::string _initial_condition = "wave3";
+    std::string _nfreq_bias = "sinesqr";
+    double _nfreq_bias_amplitude = 0.5;
     double _loginterval;
     std::string _filename;
     bool _discardburn = false;
 };
 
-inline Time_evolution::Time_evolution(int argc, char** argv) {
+inline Biased_natural_freqs::Biased_natural_freqs(int argc, char** argv) {
     std::string opt;
     try {
         // coupling has to be first since other default values depend on it
@@ -77,9 +86,7 @@ inline Time_evolution::Time_evolution(int argc, char** argv) {
         if (cmdOptionExists(argv, argv+argc, "--log-phases")) {
             opt = getCmdOption(argv, argv+argc, "--log-phases");
             if (opt.size()) {
-                _logphases = stoi(opt);
-            } else {
-                _logphases = 1;
+                _phasebinsize = stoi(opt);
             }
         }
         if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
@@ -95,6 +102,16 @@ inline Time_evolution::Time_evolution(int argc, char** argv) {
                     " [random, uniform]\nDefaulting to \"" << _initial_condition
                     << "\".\n";
             }
+        }
+        if (cmdOptionExists(argv, argv+argc, "--nfreqs-bias")) {
+            opt = getCmdOption(argv, argv+argc, "--nfreqs-bias");
+            if ( (opt=="sinesqr") || (opt=="linear") ) {
+                _nfreq_bias = opt;
+            }
+        }
+        if (cmdOptionExists(argv, argv+argc, "--nfreqs-bias-amplitude")) {
+            opt = getCmdOption(argv, argv+argc, "--nfreqs-bias-amplitude");
+            _nfreq_bias_amplitude = std::stof(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "--log-interval")) {
             opt = getCmdOption(argv, argv+argc, "--log-interval");
@@ -116,12 +133,15 @@ inline Time_evolution::Time_evolution(int argc, char** argv) {
             _discardburn = stoi(opt);
         }
     } catch(...) {
-        std::cerr << "Trial parameters not understood!\n"
+        std::cerr << "Experiment parameters not understood!\n"
                      "See -h for help.\n";
+        for (int i=0; i<argc; i++) {
+            std::cerr << argv[i] << std::endl;
+        }
     }
 }
 
-inline void Time_evolution::log_trial_to_file(
+inline void Biased_natural_freqs::log_trial_to_file(
             size_t iters, size_t burn,
             States &states, Deltas &deltas, Rates &rates, double rates_table[],
             NaturalFreqs &g,
@@ -135,77 +155,36 @@ inline void Time_evolution::log_trial_to_file(
         for (size_t i=0; i<burn; i++) {
             dt = 1.0 / rates.sum;
             time_elapsed += dt;
-            transition_site(states,
-                            deltas,
-                            rates,
-                            rates_table,
-                            g,
-                            RNG,
-                            uniform);
+            transition_site(states, deltas, rates, rates_table, g, RNG, uniform);
         }
     } else {
         total_iters = burn + iters;
     }
-    double r, psi;
     double log_counter = std::numeric_limits<float>::infinity();
-    if (_logphases) {
-        for (size_t i=0; i<total_iters; i++) {
-            dt = 1.0 / rates.sum;
-            time_elapsed += dt;
-            transition_site(states,
-                            deltas,
-                            rates,
-                            rates_table,
-                            g,
-                            RNG,
-                            uniform);
-            log_counter += dt;
-            if (log_counter >= _loginterval) {
-                compress_states_and_write_to_file(log_file, states.array, time_elapsed);
-                log_counter = 0;
-            }
-        }
-    } else {
-        for (size_t i=0; i<total_iters; i++) {
-            dt = 1.0 / rates.sum;
-            time_elapsed += dt;
-            transition_site(states,
-                            deltas,
-                            rates,
-                            rates_table,
-                            g,
-                            RNG,
-                            uniform);
-            log_counter += dt;
-            if (log_counter >= _loginterval) {
-                r = get_squared_op(states);
-                psi = get_psi_op(states, rates, g);
-                fprintf(log_file,
-                        "%16.16f,%16.16f,%d,%d,%f,%f\n",
-                        r, psi, states.pop[0], states.pop[1], time_elapsed, dt);
-                log_counter = 0;
-            }
+    for (size_t i=0; i<total_iters; i++) {
+        dt = 1.0 / rates.sum;
+        time_elapsed += dt;
+        transition_site(states, deltas, rates, rates_table, g, RNG, uniform);
+        log_counter += dt;
+        if (log_counter >= _loginterval) {
+            compress_states_and_write_to_file(log_file, states.array, time_elapsed);
+            log_counter = 0;
         }
     }
 }
 
-inline double Time_evolution::run() {
+inline double Biased_natural_freqs::run() {
     FILE* trial_log_file = fopen((_filename).c_str(), "w");
     fprintf(
             trial_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
-            "Dynamics_parameters: coupling=%f iters=%lu burn=%lu"
-            " seed=%lu stream=%lu initial_condition=%s discard_burn=%d\n",
+            "Dynamics_parameters: coupling=%f iters=%lu burn=%lu seed=%lu stream=%lu initial_condition=%s discard_burn=%d nfreqs_bias=%s nfreqs_bias_amplitude=%f\n",
             N, K, p, TOPOLOGY_SEED,
             _t_params.coupling, _t_params.iters, _t_params.burn,
             _t_params.seed, _t_params.stream, _initial_condition.c_str(),
-            _discardburn
+            _discardburn, _nfreq_bias.c_str(), _nfreq_bias_amplitude
         );
-    if (_logphases) {
-        fprintf(trial_log_file, "[phases],time_elapsed\n");
-    } else {
-        fprintf(trial_log_file, "r,psi,pop0,pop1,time_elapsed,dt\n");
-    }
+    fprintf(trial_log_file, "[phases],time_elapsed\n");
     States local_states;
     Deltas local_deltas;
     Rates local_rates;
@@ -213,14 +192,34 @@ inline double Time_evolution::run() {
     NaturalFreqs g;
     pcg32 RNG(_t_params.seed, _t_params.stream);
     Uniform uniform(0.0, 1.0);
-    initialize_everything(
-            _t_params.coupling,
-            local_states, local_deltas,
-            local_rates, rates_table,
-            g,
-            RNG, _initial_condition,
-            false
-        );
+
+    //  here we manually initialize the natural frequencies array g, instead of
+    //  using the `initialize_natural_frequencies` function in order to write
+    //  the biased natural frequencies
+    if (_nfreq_bias == "sinesqr") {
+        for (int n=0; n<N; n++) {
+            g[n] = 1.0 + _nfreq_bias_amplitude * (1.0 + sin(n*PI/(2*N))*sin(n*PI/(2*N)));
+        }
+    } else if (_nfreq_bias == "linear") {
+        for (int n=0; n<N/2; n++ ) { g[n] = 1.0 + _nfreq_bias_amplitude * (1.0 + (double) n/N); }
+        for (int n=N/2; n>=0; n--) { g[n] = 1.0 + _nfreq_bias_amplitude * (1.0 - (double) n/N); }
+    }
+    // we then have to manually initialize all other variables related to the
+    // dynamics since we can't use the `initialize_everything` function anymore
+    initialize_rates_table(_t_params.coupling, rates_table);
+    if ( _initial_condition == "random" ) {
+        initialize_random_states(local_states, RNG);
+    } else if ( _initial_condition == "uniform" ) {
+        initialize_uniform_states(local_states);
+    } else if ( _initial_condition.substr(0, 4) == "wave" ) {
+        initialize_wave_states(local_states, std::stoi(_initial_condition.substr(4)));
+    } else {
+        std::cout << "Initial condition " << " not understood. Defaulting to random.\n";
+        initialize_random_states(local_states, RNG);
+    }
+    initialize_deltas(local_states, local_deltas);
+    initialize_rates(local_deltas, local_rates, rates_table, g);
+
     struct timespec start, finish;    // measure code run-times
     double elapsed;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -239,7 +238,7 @@ inline double Time_evolution::run() {
     return elapsed;
 }
 
-inline void Time_evolution::print_headers() {
+inline void Biased_natural_freqs::print_headers() {
     std::cout
         << "Logging trial to file: " << _filename << '\n'
         << "  Coupling: " << get_coupling() << '\n'
@@ -249,22 +248,18 @@ inline void Time_evolution::print_headers() {
         << "  Burn: " << get_burn() << '\n'
         << "  Discard burn: " << get_discardburn() << '\n'
         << "  Initial condition: " << get_ic() << '\n'
-        << "  Log time interval: " << get_timeinterval() << '\n';
-    if (get_xinterval()) {
-        std::cout
-            << "  Log phase space interval: " << get_xinterval() << '\n';
-    }
+        << "  Log time interval: " << get_timeinterval() << '\n'
+        << "  Natural frequency bias: " << get_nfreq_bias() << '\n'
+        << "  Natural frequency bias amplitude: " << get_nfreq_bias_amplitude() << '\n'
+        << "  Phases compression bin size: " << get_phasebinsize() << '\n';
 }
 
-inline std::string Time_evolution::getDefaultTrialFilename(double coupling) {
+inline std::string Biased_natural_freqs::getDefaultTrialFilename(double coupling) {
+    // generate the default file name from the parameters passed to the experiment
     std::ostringstream prefixstream;
     prefixstream.fill('0');
     prefixstream.precision(6);
-    if (_logphases) {
-        prefixstream << "phasetrial-N-";
-    } else {
-        prefixstream << "trial-N-";
-    }
+    prefixstream << "biasedNFtrial-N-";
     prefixstream.width(5);
     prefixstream << N << "K-";
     prefixstream.width(5);
@@ -286,10 +281,12 @@ inline std::string Time_evolution::getDefaultTrialFilename(double coupling) {
     return fname;
 }
 
-inline void Time_evolution::compress_states_and_write_to_file(FILE* file, uint8_t* states, double t)
+inline void Biased_natural_freqs::compress_states_and_write_to_file(FILE* file, uint8_t* states, double t)
 {
+    // compress phase values into bins of size `_phasebinsize` and write them to
+    // `file` suffixed by the time `t`
     size_t j;
-    if (_logphases > 1) {
+    if (_phasebinsize > 1) {
         size_t compress_counter, n0, n1, n2;
         compress_counter = 0;
         n0 = n1 = n2 = 0;
@@ -298,7 +295,7 @@ inline void Time_evolution::compress_states_and_write_to_file(FILE* file, uint8_
             else if (states[j] == 1) n1++;
             else if (states[j] == 2) n2++;
             compress_counter++;
-            if (compress_counter == _logphases) {
+            if (compress_counter == _phasebinsize) {
                 fprintf(file, "%d,", median(n0, n1, n2));
                 n0 = n1 = n2 = 0;
                 compress_counter = 0;
@@ -309,7 +306,7 @@ inline void Time_evolution::compress_states_and_write_to_file(FILE* file, uint8_
         } else {
             fprintf(file, "%f\n", t);
         }
-    } else if (_logphases == 1) {
+    } else if (_phasebinsize == 1) {
         for (j=0; j<N; j++) {
             fprintf(file, "%d,", states[j]);
         }

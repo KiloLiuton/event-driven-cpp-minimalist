@@ -29,7 +29,7 @@ private:
     std::string _initial_condition = "uniform";
 };
 
-Chi_curves::Chi_curves(int argc, char** argv) {
+inline Chi_curves::Chi_curves(int argc, char** argv) {
     try {
         std::string opt;
         if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
@@ -80,15 +80,14 @@ Chi_curves::Chi_curves(int argc, char** argv) {
     }
 }
 
-void Chi_curves::run() {
+inline void Chi_curves::run() {
     FILE* batches_log_file = std::fopen((_filename).c_str(), "w");
     fprintf(
             batches_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
             "Dynamics_parameters: trials=%lu iters=%lu burn=%lu "
             "initial_condition=%s\n"
-            "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,processing_time,"
-            "used_seed\n",
+            "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,processing_time,used_seed\n",
             N, K, p, TOPOLOGY_SEED,
             _b_params.trials, _b_params.iters, _b_params.burn,
             _initial_condition.c_str()
@@ -138,7 +137,7 @@ void Chi_curves::run() {
     std::fclose(batches_log_file);
 }
 
-std::string Chi_curves::getDefaultBatchFilename(double a0, double a1, int n) {
+inline std::string Chi_curves::getDefaultBatchFilename(double a0, double a1, int n) {
     std::ostringstream sstream;
     sstream.fill('0');
     sstream.precision(6);

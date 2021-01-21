@@ -12,14 +12,14 @@ public:
     double average() { return _average; }
 };
 
-Benchmark::Benchmark(int iters) {
+inline Benchmark::Benchmark(int iters) {
     _iters = iters;
     _fastest = std::numeric_limits<double>::infinity();
     _slowest = -std::numeric_limits<double>::infinity();
     _average = 0;
 }
 
-void Benchmark::run() {
+inline void Benchmark::run() {
     struct timespec start, finish;
     double elapsed;
     States states;

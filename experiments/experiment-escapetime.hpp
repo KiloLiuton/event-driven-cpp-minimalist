@@ -32,7 +32,7 @@ private:
     unsigned int _couplingn = 1;
 };
 
-Escape_time::Escape_time(int argc, char** argv) {
+inline Escape_time::Escape_time(int argc, char** argv) {
     std::string opt;
     try {
         // coupling has to be first since other default values depend on it
@@ -68,7 +68,7 @@ Escape_time::Escape_time(int argc, char** argv) {
     }
 }
 
-double Escape_time::run() {
+inline double Escape_time::run() {
     struct timespec expstart, expfinish;    // measure code run-time
     clock_gettime(CLOCK_MONOTONIC, &expstart);
 
@@ -104,7 +104,7 @@ double Escape_time::run() {
     return elapsed;
 }
 
-std::vector<double> Escape_time::runescape(double a)
+inline std::vector<double> Escape_time::runescape(double a)
 {
     std::vector<double> Tvec(_trials, -1);
     double rates_table[NUM_POSSIBLE_TRANSITIONS];
@@ -143,11 +143,11 @@ std::vector<double> Escape_time::runescape(double a)
     return Tvec;
 }
 
-void Escape_time::print_headers() {
+inline void Escape_time::print_headers() {
     std::cout << "Logging escape times to: " << get_filename() << '\n';
 }
 
-std::string Escape_time::getDefaultTrialFilename() {
+inline std::string Escape_time::getDefaultTrialFilename() {
     std::ostringstream prefixstream;
     prefixstream.fill('0');
     prefixstream.precision(6);
