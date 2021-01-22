@@ -4,7 +4,6 @@
  * system properties. All simulations parameters are passed on though the
  * `trial_params` struct as well as the topology specified during compilation.
  */
-#define PI 3.14159265359
 
 #include <iostream>
 #include <sstream>

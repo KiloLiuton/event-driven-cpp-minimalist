@@ -54,8 +54,10 @@ void initialize_everything(
 }
 
 void reset_system(
-        States &local_states, Deltas &local_deltas,
-        Rates &local_rates, double rates_table[],
+        States &local_states,
+        Deltas &local_deltas,
+        Rates &local_rates,
+        double rates_table[],
         NaturalFreqs &g,
         pcg32 &RNG,
         std::string initial_condition="random"
@@ -369,12 +371,7 @@ Trial run_no_omega_trial(
     initialize_deltas(local_states, local_deltas);
     initialize_rates(local_deltas, local_rates, rates_table, g);
     for (size_t i = 0; i < burn; i++) {
-        transition_site(
-                local_states, local_deltas,
-                local_rates, rates_table,
-                g,
-                RNG, uniform
-            );
+        transition_site(local_states, local_deltas, local_rates, rates_table, g, RNG, uniform);
     }
     double R = 0;
     double PSI = 0;
@@ -384,12 +381,7 @@ Trial run_no_omega_trial(
         R += get_op(local_states) * dt;
         PSI += get_psi_op(local_states, local_rates, g) * dt;
         time_elapsed += dt;
-        transition_site(
-                local_states, local_deltas,
-                local_rates, rates_table,
-                g,
-                RNG, uniform
-            );
+        transition_site(local_states, local_deltas, local_rates, rates_table, g, RNG, uniform);
     }
     Trial trial;
     trial.r = R / time_elapsed;
@@ -411,12 +403,7 @@ Trial run_trial(
     ) {
 
     for (size_t i = 0; i < burn; i++) {
-        transition_site(
-                local_states, local_deltas,
-                local_rates, rates_table,
-                g,
-                RNG, uniform
-            );
+        transition_site(local_states, local_deltas, local_rates, rates_table, g, RNG, uniform);
     }
     /* measure frequency of oscillations by counting how many times
        population 0 crosses the threshold. After detecting such a
@@ -437,12 +424,7 @@ Trial run_trial(
     double omega;
     double time_elapsed = 0;
     for (size_t i = 0; i < iters; i++) {
-        transition_site(
-                local_states, local_deltas,
-                local_rates, rates_table,
-                g,
-                RNG, uniform
-            );
+        transition_site(local_states, local_deltas, local_rates, rates_table, g, RNG, uniform);
         double dt = 1.0 / local_rates.sum;
         R += get_op(local_states) * dt;
         PSI += get_psi_op(local_states, local_rates, g) * dt;
@@ -490,6 +472,7 @@ bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown) {
     }
 }
 
+/*
 Batch run_batch(
             double coupling,
             size_t trial_iters, size_t trial_burn, size_t trials,
@@ -523,8 +506,7 @@ Batch run_batch(
 #pragma omp single
         {
             if (verbose) {
-                int thrdnum = omp_get_num_threads();
-                std::cout << "Batch running on " << thrdnum << " threads\n";
+                std::cout << "Batch running on " << omp_get_num_threads() << " threads\n";
             }
         }
         pcg32 RNG(seed);  // trials share a seed but are different streams
@@ -532,8 +514,8 @@ Batch run_batch(
         Deltas deltas;
         Rates rates;
         NaturalFreqs g;
-        reset_system(states, deltas, rates, rates_table, g, RNG);
-#pragma omp for
+        //reset_system(states, deltas, rates, rates_table, g, RNG, initial_condition);
+//#pragma omp for
         for (size_t i = 0; i < trials; i++) {
             pcg32 trial_rng(seed, i);  // different streams
             if (initial_condition == "random") {
@@ -545,17 +527,7 @@ Batch run_batch(
             }
             initialize_deltas(states, deltas);
             initialize_rates(deltas, rates, rates_table, g);
-            Trial trial = run_trial(
-                    trial_iters,
-                    trial_burn,
-                    states,
-                    deltas,
-                    rates,
-                    rates_table,
-                    g,
-                    trial_rng,
-                    uniform
-                );
+            Trial trial = run_trial(trial_iters, trial_burn, states, deltas, rates, rates_table, g, trial_rng, uniform);
             r += trial.r;
             r2 += std::pow(trial.r, 2.0);
             psi += trial.psi;
@@ -578,3 +550,4 @@ Batch run_batch(
     batch.used_seed = seed;
     return batch;
 }
+*/

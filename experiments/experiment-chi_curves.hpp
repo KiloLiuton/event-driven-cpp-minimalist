@@ -2,6 +2,7 @@
 #include <sstream>
 #include <fstream>
 #include <chrono>
+#include <omp.h>
 #include "dynamics.hpp"
 #include "misc.hpp"
 
@@ -9,20 +10,34 @@ class Chi_curves {
 public:
     Chi_curves(int argc, char** argv);
     void run();
-    double get_coupling_start() { return _b_params.coupling_start; }
-    double get_coupling_end()   { return _b_params.coupling_end;   }
-    double get_num_batches()    { return _b_params.n_batches;      }
-    double get_trials()         { return _b_params.trials;         }
-    double get_iters()          { return _b_params.iters;          }
-    double get_burn()           { return _b_params.burn;           }
-    std::string get_ic()        { return _initial_condition;       }
-    std::string get_filename()  { return _filename;                }
+    Batch run_batch(double coupling,
+                    std::string nfreq_bias,
+                    double nfreq_bias_amplitude,
+                    std::string ic,
+                    size_t trials,
+                    size_t iters,
+                    size_t burn,
+                    int seed);
+    double get_coupling_start()       { return coupling_start;        }
+    double get_coupling_end()         { return coupling_end;          }
+    double get_num_batches()          { return n_batches;             }
+    double get_trials()               { return trials;                }
+    double get_iters()                { return iters;                 }
+    double get_burn()                 { return burn;                  }
+    double get_nfreq_bias_amplitude() { return _nfreq_bias_amplitude; }
+    std::string get_nfreq_bias()      { return _nfreq_bias;           }
+    std::string get_ic()              { return _initial_condition;    }
+    std::string get_filename()        { return _filename;             }
 private:
-    size_t it = 17*N*log(N);
-    size_t bu = 3*N*log(N);
-    struct batch_params _b_params {
-        1.0, 3.6, 20, 0, 400, it, bu
-    };
+    double coupling_start = 1.0;
+    double coupling_end = 3.6;
+    int n_batches = 20;
+    size_t trials = 200;
+    size_t iters = 17*N*log(N);
+    size_t burn = 3*N*log(N);
+    int seed = 23;
+    double _nfreq_bias_amplitude = 0.1;
+    std::string _nfreq_bias = "sine2";
     /* get the default file name based on current existing files*/
     std::string getDefaultBatchFilename(double a0, double a1, int n);
     std::string _filename;
@@ -43,35 +58,39 @@ inline Chi_curves::Chi_curves(int argc, char** argv) {
         }
         if (cmdOptionExists(argv, argv+argc, "-bs")) {
             opt = getCmdOption(argv, argv+argc, "-bs");
-            _b_params.coupling_start = stof(opt);
+            coupling_start = stof(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-be")) {
             opt = getCmdOption(argv, argv+argc, "-be");
-            _b_params.coupling_end = stof(opt);
+            coupling_end = stof(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bn")) {
             opt = getCmdOption(argv, argv+argc, "-bn");
-            _b_params.n_batches = stoi(opt);
+            n_batches = stoi(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bt")) {
             opt = getCmdOption(argv, argv+argc, "-bt");
-            _b_params.trials = stoi(opt);
+            trials = stoi(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bi")) {
             opt = getCmdOption(argv, argv+argc, "-bi");
-            _b_params.iters = stoi(opt);
+            iters = stoi(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bb")) {
             opt = getCmdOption(argv, argv+argc, "-bb");
-            _b_params.burn = stoi(opt);
+            burn = stoi(opt);
+        }
+        if (cmdOptionExists(argv, argv+argc, "-br")) {
+            opt = getCmdOption(argv, argv+argc, "-br");
+            seed = stoi(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bf")) {
             opt = getCmdOption(argv, argv+argc, "-bf");
             _filename = opt;
         } else {
             _filename = getDefaultBatchFilename(
-                    _b_params.coupling_start, _b_params.coupling_end,
-                    _b_params.n_batches
+                    coupling_start, coupling_end,
+                    n_batches
                 );
         }
     } catch(...) {
@@ -89,27 +108,29 @@ inline void Chi_curves::run() {
             "initial_condition=%s\n"
             "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,processing_time,used_seed\n",
             N, K, p, TOPOLOGY_SEED,
-            _b_params.trials, _b_params.iters, _b_params.burn,
+            trials, iters, burn,
             _initial_condition.c_str()
         );
 
-    for (int i = 0; i < _b_params.n_batches; i++) {
+    struct timespec expstart, expfinish;    // measure code run-time
+    clock_gettime(CLOCK_MONOTONIC, &expstart);
+    for (int i = 0; i < n_batches; i++) {
         double a;
-        if (_b_params.n_batches <= 1) {
-            a = _b_params.coupling_start;
+        if (n_batches <= 1) {
+            a = coupling_start;
         } else {
-            double step = (_b_params.coupling_end - _b_params.coupling_start)
-                          / (_b_params.n_batches - 1);
-            a = (double) _b_params.coupling_start + i * step;
+            double step = (coupling_end - coupling_start)
+                          / (n_batches - 1);
+            a = coupling_start + (double) i * step;
         }
-        Batch batch = run_batch(
-                a,
-                _b_params.iters,
-                _b_params.burn,
-                _b_params.trials,
-                _initial_condition,
-                true
-            );
+        Batch batch = run_batch(a,
+                                _nfreq_bias,
+                                _nfreq_bias_amplitude,
+                                _initial_condition,
+                                trials,
+                                iters,
+                                burn,
+                                seed);
         fprintf(
                 batches_log_file, 
                 "%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,"
@@ -129,12 +150,87 @@ inline void Chi_curves::run() {
         using std::chrono::system_clock;
         std::time_t now = system_clock::to_time_t(system_clock::now());
         std::cout << std::fixed << "["
-                  << i + 1 << "\\" << _b_params.n_batches
+                  << i + 1 << "\\" << n_batches
                   << "] N=" << N << " K=" << K << " p=" << p << " a=" << a
                   << " Batch finished in: " << std::setprecision(6)
                   << batch.time << "s -- " << std::ctime(&now);
     }
+    clock_gettime(CLOCK_MONOTONIC, &expfinish);
+    double elapsed = (expfinish.tv_sec - expstart.tv_sec);
+    elapsed += (expfinish.tv_nsec - expstart.tv_nsec) / 1000000000.0;
+    std::cout << "Chi Curves finished in " << std::setprecision(2) << elapsed << " seconds\n\n";
     std::fclose(batches_log_file);
+}
+
+inline Batch Chi_curves::run_batch(double coupling,
+                       std::string nfreq_bias,
+                       double nfreq_bias_amplitude,
+                       std::string ic,
+                       size_t trials,
+                       size_t iters,
+                       size_t burn,
+                       int seed)
+{
+    double rates_table[NUM_POSSIBLE_TRANSITIONS];
+    initialize_rates_table(coupling, rates_table);
+
+    pcg32 RNG(seed);
+    NaturalFreqs g;
+    initialize_custom_natural_frequencies(g, nfreq_bias, nfreq_bias_amplitude, RNG);
+
+    size_t i, j;
+    double r=0, r2=0, psi=0, psi2=0;
+    struct timespec batchstart, batchfinish;    // measure code run-time
+    clock_gettime(CLOCK_MONOTONIC, &batchstart);
+    omp_set_num_threads(8);
+    #pragma omp parallel for default(none) \
+        shared(rates_table,g,ic,trials,iters,burn,seed) \
+        private(i,j) \
+        reduction(+:r,r2,psi,psi2)
+    for (i=0; i<trials; i++) {
+        States states;
+        Deltas deltas;
+        Rates rates;
+        pcg32 RNG(seed, i*seed);  // trials share a seed value but select different streams
+        Uniform uniform(0.0, 1.0);
+
+        if      ( ic=="random"            ) { initialize_random_states(states, RNG);                   }
+        else if ( ic=="uniform"           ) { initialize_uniform_states(states);                       }
+        else if ( ic.substr(0, 4)=="wave" ) { initialize_wave_states(states, std::stoi(ic.substr(4))); }
+        initialize_deltas(states, deltas);
+        initialize_rates(deltas, rates, rates_table, g);
+        for (j=0; j<burn; j++) {
+            transition_site(states, deltas, rates, rates_table, g, RNG, uniform);
+        }
+        double time_elapsed=0, R=0, PSI=0;
+        double dt;
+        for (j=0; j<iters; j++) {
+            dt = 1.0 / rates.sum;
+            time_elapsed += dt;
+            transition_site(states, deltas, rates, rates_table, g, RNG, uniform);
+            R += get_op(states);
+            PSI += get_psi_op(states, rates, g);
+        }
+        R = R / time_elapsed;
+        PSI = PSI / time_elapsed;
+        r += R;
+        r2 += R*R;
+        psi += PSI;
+        psi2 += PSI*PSI;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &batchfinish);
+    double elapsed = (batchfinish.tv_sec - batchstart.tv_sec);
+    elapsed += (batchfinish.tv_nsec - batchstart.tv_nsec) / 1000000000.0;
+    Batch batch;
+    batch.r = r / trials;
+    batch.r2 = r2 / trials;
+    batch.psi = psi / trials;
+    batch.psi2 = psi2 / trials;
+    batch.chi_r = batch.r2 - batch.r*batch.r;
+    batch.chi_psi = batch.psi2 - batch.psi*batch.psi;
+    batch.used_seed = seed;
+    batch.time = elapsed;
+    return batch;
 }
 
 inline std::string Chi_curves::getDefaultBatchFilename(double a0, double a1, int n) {

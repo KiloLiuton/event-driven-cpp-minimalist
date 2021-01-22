@@ -39,17 +39,6 @@ typedef struct {
     double duration;
 } Trial;
 
-// parameters to run a batch
-struct batch_params {
-    double coupling_start;
-    double coupling_end;
-    int n_batches;
-    int batch_id;
-    size_t trials;
-    size_t iters;
-    size_t burn;
-};
-
 // data returned by a trial function
 typedef struct {
     double r;
@@ -89,7 +78,7 @@ double get_rate_from_table(uint16_t i, int16_t d, double rates_table[]);
 void initialize_random_states(States &local_states, pcg32 &RNG);
 void initialize_uniform_states(States &local_states);
 void initialize_wave_states(States &local_states, int num_bins);
-/* populate the natural frequencies array */
+/* populate the natural frequencies array with a gaussian distribution */
 void initialize_natural_frequencies(
         double mean,
         double stddev,
@@ -164,11 +153,11 @@ Trial run_trial(
 bool is_crossing(size_t nprev, size_t n, float t, bool is_on_cooldown);
 
 /* execute a batch of trials and record the average order parameter */
-Batch run_batch(
-        double coupling,
-        size_t trial_iters, size_t trial_burn, size_t trials,
-        std::string initial_condition,
-        bool verbose
-    );
+//Batch run_batch(
+//        double coupling,
+//        size_t trial_iters, size_t trial_burn, size_t trials,
+//        std::string initial_condition,
+//        bool verbose
+//    );
 
 #endif
