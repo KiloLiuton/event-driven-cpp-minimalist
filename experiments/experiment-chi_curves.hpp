@@ -1,8 +1,10 @@
 #include <iomanip>
+#include <math.h>
 #include <sstream>
 #include <fstream>
 #include <chrono>
 #include <omp.h>
+#include <stdio.h>
 #include "dynamics.hpp"
 #include "misc.hpp"
 
@@ -10,38 +12,38 @@ class Chi_curves {
 public:
     Chi_curves(int argc, char** argv);
     void run();
-    Batch run_batch(double coupling,
-                    std::string nfreq_bias,
-                    double nfreq_bias_amplitude,
+    Batch run_batch(NaturalFreqs &g,
+                    double rates_table[],
                     std::string ic,
                     size_t trials,
                     size_t iters,
                     size_t burn,
                     int seed);
-    double get_coupling_start()       { return coupling_start;        }
-    double get_coupling_end()         { return coupling_end;          }
-    double get_num_batches()          { return n_batches;             }
-    double get_trials()               { return trials;                }
-    double get_iters()                { return iters;                 }
-    double get_burn()                 { return burn;                  }
-    double get_nfreq_bias_amplitude() { return _nfreq_bias_amplitude; }
-    std::string get_nfreq_bias()      { return _nfreq_bias;           }
-    std::string get_ic()              { return _initial_condition;    }
-    std::string get_filename()        { return _filename;             }
+    double get_coupling_start()       { return a_start;              }
+    double get_coupling_end()         { return a_end;                }
+    double get_num_batches()          { return n_batches;            }
+    double get_trials()               { return trials;               }
+    double get_iters()                { return iters;                }
+    double get_burn()                 { return burn;                 }
+    double get_seed()                 { return seed;                 }
+    double get_nfreq_bias_amplitude() { return nfreq_bias_amplitude; }
+    std::string get_nfreq_bias()      { return nfreq_bias;           }
+    std::string get_ic()              { return initial_condition;    }
+    std::string get_filename()        { return filename;             }
 private:
-    double coupling_start = 1.0;
-    double coupling_end = 3.6;
+    double a_start = 1.0;
+    double a_end = 3.6;
     int n_batches = 20;
-    size_t trials = 200;
+    size_t trials = 100;
     size_t iters = 17*N*log(N);
     size_t burn = 3*N*log(N);
     int seed = 23;
-    double _nfreq_bias_amplitude = 0.1;
-    std::string _nfreq_bias = "sine2";
+    double nfreq_bias_amplitude = 0.1;
+    std::string nfreq_bias = "none";
     /* get the default file name based on current existing files*/
     std::string getDefaultBatchFilename(double a0, double a1, int n);
-    std::string _filename;
-    std::string _initial_condition = "uniform";
+    std::string filename;
+    std::string initial_condition = "uniform";
 };
 
 inline Chi_curves::Chi_curves(int argc, char** argv) {
@@ -49,20 +51,28 @@ inline Chi_curves::Chi_curves(int argc, char** argv) {
         std::string opt;
         if (cmdOptionExists(argv, argv+argc, "--initial-condition")) {
             opt = getCmdOption(argv, argv+argc, "--initial-condition");
-            if (opt != "random" && opt != "uniform") {
+            if (opt != "random" && opt != "uniform" && opt.substr(0,4) != "wave") {
                 printf("Invalid initial condition. Possible values are "
-                       "[random, uniform]\nDefaulting to \"random\".\n");
+                       "[random, uniform, wave(n)]\nDefaulting to \"random\".\n");
             } else {
-                _initial_condition = opt;
+                initial_condition = opt;
             }
+        }
+        if (cmdOptionExists(argv, argv+argc, "--nfreq-bias")) {
+          opt = getCmdOption(argv, argv+argc, "--nfreq-bias");
+          nfreq_bias = opt;
+        }
+        if (cmdOptionExists(argv, argv+argc, "--nfreq-bias-amplitude")) {
+          opt = getCmdOption(argv, argv+argc, "--nfreq-bias-amplitude");
+          nfreq_bias_amplitude = std::stof(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bs")) {
             opt = getCmdOption(argv, argv+argc, "-bs");
-            coupling_start = stof(opt);
+            a_start = stof(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-be")) {
             opt = getCmdOption(argv, argv+argc, "-be");
-            coupling_end = stof(opt);
+            a_end = stof(opt);
         }
         if (cmdOptionExists(argv, argv+argc, "-bn")) {
             opt = getCmdOption(argv, argv+argc, "-bn");
@@ -86,10 +96,10 @@ inline Chi_curves::Chi_curves(int argc, char** argv) {
         }
         if (cmdOptionExists(argv, argv+argc, "-bf")) {
             opt = getCmdOption(argv, argv+argc, "-bf");
-            _filename = opt;
+            filename = opt;
         } else {
-            _filename = getDefaultBatchFilename(
-                    coupling_start, coupling_end,
+            filename = getDefaultBatchFilename(
+                    a_start, a_end,
                     n_batches
                 );
         }
@@ -100,7 +110,7 @@ inline Chi_curves::Chi_curves(int argc, char** argv) {
 }
 
 inline void Chi_curves::run() {
-    FILE* batches_log_file = std::fopen((_filename).c_str(), "w");
+    FILE* batches_log_file = std::fopen((filename).c_str(), "w");
     fprintf(
             batches_log_file,
             "Graph_parameters: N=%d K=%d p=%f seed=%d\n"
@@ -109,28 +119,37 @@ inline void Chi_curves::run() {
             "coupling,r,r2,psi,psi2,chi_r,chi_psi,omega,processing_time,used_seed\n",
             N, K, p, TOPOLOGY_SEED,
             trials, iters, burn,
-            _initial_condition.c_str()
+            initial_condition.c_str()
         );
+    pcg32 RNG(seed);
+    double rates_table[NUM_POSSIBLE_TRANSITIONS];
+    NaturalFreqs g;
+    if ( nfreq_bias == "sinesqr" ) {
+      for (size_t i=0; i<N; i++) {
+        g[i] = 1.0 + nfreq_bias_amplitude * ( sin((double) i/N*PI/2)*sin((double) i/N*PI/2) );
+      }
+    } else if ( nfreq_bias == "linear" ) {
+      for (size_t i=0; i<N/2; i++) { g[i] = 1.0 + nfreq_bias_amplitude * ( (double) i / N ); }
+      for (size_t i=N/2; i<N; i++) { g[i] = 1.0 - nfreq_bias_amplitude * ( (double) i / N ); }
+    } else {
+      Normal norm(1.0, nfreq_bias_amplitude);
+      for (size_t i=0; i<N; i++) {
+        g[i] = abs(norm(RNG));
+      }
+    }
 
     struct timespec expstart, expfinish;    // measure code run-time
     clock_gettime(CLOCK_MONOTONIC, &expstart);
     for (int i = 0; i < n_batches; i++) {
         double a;
-        if (n_batches <= 1) {
-            a = coupling_start;
+        if (n_batches == 1) {
+            a = a_start;
         } else {
-            double step = (coupling_end - coupling_start)
-                          / (n_batches - 1);
-            a = coupling_start + (double) i * step;
+            double step = (a_end - a_start) / (n_batches - 1);
+            a = a_start + (double) i * step;
         }
-        Batch batch = run_batch(a,
-                                _nfreq_bias,
-                                _nfreq_bias_amplitude,
-                                _initial_condition,
-                                trials,
-                                iters,
-                                burn,
-                                seed);
+        initialize_rates_table(a, rates_table);
+        Batch batch = run_batch(g, rates_table, initial_condition, trials, iters, burn, seed);
         fprintf(
                 batches_log_file, 
                 "%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,%16.16f,"
@@ -152,7 +171,7 @@ inline void Chi_curves::run() {
         std::cout << std::fixed << "["
                   << i + 1 << "\\" << n_batches
                   << "] N=" << N << " K=" << K << " p=" << p << " a=" << a
-                  << " Batch finished in: " << std::setprecision(6)
+                  << " Batch finished in: " << std::setprecision(4)
                   << batch.time << "s -- " << std::ctime(&now);
     }
     clock_gettime(CLOCK_MONOTONIC, &expfinish);
@@ -162,31 +181,20 @@ inline void Chi_curves::run() {
     std::fclose(batches_log_file);
 }
 
-inline Batch Chi_curves::run_batch(double coupling,
-                       std::string nfreq_bias,
-                       double nfreq_bias_amplitude,
-                       std::string ic,
-                       size_t trials,
-                       size_t iters,
-                       size_t burn,
-                       int seed)
+inline Batch Chi_curves::run_batch(NaturalFreqs &g,
+                                   double rates_table[],
+                                   std::string ic,
+                                   size_t trials,
+                                   size_t iters,
+                                   size_t burn,
+                                   int seed)
 {
-    double rates_table[NUM_POSSIBLE_TRANSITIONS];
-    initialize_rates_table(coupling, rates_table);
-
-    pcg32 RNG(seed);
-    NaturalFreqs g;
-    initialize_custom_natural_frequencies(g, nfreq_bias, nfreq_bias_amplitude, RNG);
-
     size_t i, j;
     double r=0, r2=0, psi=0, psi2=0;
     struct timespec batchstart, batchfinish;    // measure code run-time
     clock_gettime(CLOCK_MONOTONIC, &batchstart);
     omp_set_num_threads(8);
-    #pragma omp parallel for default(none) \
-        shared(rates_table,g,ic,trials,iters,burn,seed) \
-        private(i,j) \
-        reduction(+:r,r2,psi,psi2)
+    #pragma omp parallel for default(none) shared(rates_table,g,ic,trials,iters,burn,seed) private(i,j) reduction(+:r,r2,psi,psi2)
     for (i=0; i<trials; i++) {
         States states;
         Deltas deltas;

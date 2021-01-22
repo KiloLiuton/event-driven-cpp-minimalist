@@ -151,14 +151,16 @@ int main(int argc, char** argv) {
     // RUN A BATCH OF TRIALS FOR EACH COUPLING STRENGTH
     if (cmdOptionExists(argv, argv+argc, "-b")) {
         Chi_curves expb(argc, argv);
-        std::cout << "Logging batch to file: " << expb.get_filename() << '\n'
-                  << "  coupling_start: " << expb.get_coupling_start() << '\n'
-                  << "  coupling_end: " << expb.get_coupling_end() << '\n'
-                  << "  coupling_n: " << expb.get_num_batches() << '\n'
-                  << "  trials: " << expb.get_trials() << '\n'
-                  << "  iters: " << expb.get_iters() << '\n'
-                  << "  burn: " << expb.get_burn() << '\n'
-                  << "  initial condition: " << expb.get_ic() << '\n';
+        std::cout << "Logging batch to file: "  << expb.get_filename() << '\n'
+                  << "  coupling_start: "       << expb.get_coupling_start() << '\n'
+                  << "  coupling_end: "         << expb.get_coupling_end() << '\n'
+                  << "  coupling_n: "           << expb.get_num_batches() << '\n'
+                  << "  trials: "               << expb.get_trials() << '\n'
+                  << "  iters: "                << expb.get_iters() << '\n'
+                  << "  burn: "                 << expb.get_burn() << '\n'
+                  << "  initial condition: "    << expb.get_ic() << '\n'
+                  << "  nfreq bias: "           << expb.get_nfreq_bias() << '\n'
+                  << "  nfreq bias amplitude: " << expb.get_nfreq_bias_amplitude() << '\n';
         if (expb.get_num_batches() < 1) {
             std::cout << "Argument for -bn must be greater than 1!\n";
             return 0;
