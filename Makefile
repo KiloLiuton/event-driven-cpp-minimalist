@@ -26,8 +26,8 @@ prog = "$(EXEC_DIR)/sim-$(N_)-$(K_)-$(p_)-gseed_$(s_)"
 # prog = "sim-" + $(topology_file)
 
 CC = g++
-#CFLAGS = -Wall -std=c++11 -O3 -march=native -fopenmp -include $(topology_file) -I$(INCLUDE_DIR) -I$(TOPOLOGIES_DIR) -Ipcg_random/ -Iexperiments
-CFLAGS = -g -Wall -std=c++11 -fopenmp -include $(topology_file) -I$(INCLUDE_DIR) -I$(TOPOLOGIES_DIR) -Ipcg_random/ -Iexperiments
+CFLAGS = -Wall -std=c++11 -O3 -march=native -fopenmp -include $(topology_file) -I$(INCLUDE_DIR) -I$(TOPOLOGIES_DIR) -Ipcg_random/ -Iexperiments
+#CFLAGS = -g -Wall -std=c++11 -fopenmp -include $(topology_file) -I$(INCLUDE_DIR) -I$(TOPOLOGIES_DIR) -Ipcg_random/ -Iexperiments
 LDFLAGS = -lm -fopenmp
 
 # all: $(prog) compile_commands.json
